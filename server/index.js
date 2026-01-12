@@ -3,6 +3,13 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_FILE = path.join(__dirname, 'queue_data.json');
 
 const app = express();
 app.use(cors());
@@ -17,10 +24,47 @@ const io = new Server(httpServer, {
 });
 
 // Queue storage
-const queues = {
+let queues = {
     marking: [],    // { id, name, studentId, joinedAt, userId, email }
     question: []    // { id, name, joinedAt, userId, email }
 };
+
+// Persistence functions
+let isSaving = false;
+let saveScheduled = false;
+
+const saveQueues = () => {
+    if (isSaving) {
+        saveScheduled = true;
+        return;
+    }
+
+    isSaving = true;
+    fs.writeFile(DATA_FILE, JSON.stringify(queues, null, 2), (err) => {
+        isSaving = false;
+        if (err) console.error('Error saving queue data:', err);
+        
+        if (saveScheduled) {
+            saveScheduled = false;
+            saveQueues();
+        }
+    });
+};
+
+const loadQueues = () => {
+    try {
+        if (fs.existsSync(DATA_FILE)) {
+            const data = fs.readFileSync(DATA_FILE, 'utf8');
+            queues = JSON.parse(data);
+            console.log('Queue data loaded from disk.');
+        }
+    } catch (err) {
+        console.error('Error loading queue data:', err);
+    }
+};
+
+// Load initial data
+loadQueues();
 
 // Track connected users by their persistent userId
 const userSockets = new Map(); // userId -> Set of socketIds
@@ -78,13 +122,16 @@ const broadcastQueues = () => {
 
 // Notify user when their turn is approaching
 const notifyUpcoming = (queueType, position, userId) => {
-    if (position <= 3 && position > 0) {
+    if (queueType === 'question') return; // Do not notify question queue
+
+    // Notify if they are next (1) or have 1 person ahead (2)
+    if (position === 1 || position === 2) {
         emitToUser(userId, 'turn-approaching', {
             queueType,
             position,
-            message: position === 1
-                ? "You're next! Please be ready."
-                : `You're #${position} in the ${queueType} queue.`
+            message: position === 1 
+                ? "You're next! Please stay on the page." 
+                : "Be prepared. Only one person is ahead of you."
         });
     }
 };
@@ -149,6 +196,7 @@ io.on('connection', (socket) => {
         };
 
         queues.marking.push(entry);
+        saveQueues(); // Save state
 
         console.log(`${name} (${userId}) joined marking queue`);
         broadcastQueues();
@@ -183,6 +231,7 @@ io.on('connection', (socket) => {
         };
 
         queues.question.push(entry);
+        saveQueues(); // Save state
 
         console.log(`${name} (${userId}) joined question queue`);
         broadcastQueues();
@@ -202,6 +251,7 @@ io.on('connection', (socket) => {
 
         if (index !== -1) {
             queue.splice(index, 1);
+            saveQueues(); // Save state
             console.log(`Entry ${entryId} left ${queueType} queue`);
 
             // Notify all tabs of this user
@@ -228,8 +278,8 @@ io.on('connection', (socket) => {
             }
 
             const item = queue[index];
-            // Calculate new index (current + 2, but capped at queue length)
-            let newIndex = index + 2;
+            // Calculate new index (current + 1, but capped at queue length)
+            let newIndex = index + 1;
             if (newIndex >= queue.length) {
                 newIndex = queue.length - 1;
             }
@@ -251,6 +301,8 @@ io.on('connection', (socket) => {
                     // If moved to front (unlikely for push-back), just update to now?
                     // Or keep as is.
                 }
+                
+                saveQueues(); // Save state
 
                 console.log(`User ${userId} pushed back in ${queueType} queue from ${index} to ${newIndex}`);
                 broadcastQueues();
@@ -312,12 +364,13 @@ io.on('connection', (socket) => {
         }
 
         entry.status = 'called';
+        saveQueues(); // Save state
         console.log(`TA called ${entry.name} from ${targetQueue} queue`);
 
         // Notify the student
         emitToUser(entry.userId, 'being-called', {
             queueType: targetQueue,
-            message: `TA will be with you shortly. Please raise your hand.`
+            message: `You are called. Please raise your hand.`
         });
 
         broadcastQueues();
@@ -343,6 +396,7 @@ io.on('connection', (socket) => {
 
         if (entry) {
             entry.status = 'called';
+            saveQueues(); // Save state
             console.log(`TA called specific student ${entry.name}`);
             
             emitToUser(entry.userId, 'being-called', {
@@ -374,6 +428,7 @@ io.on('connection', (socket) => {
 
         if (entry) {
             entry.status = 'assisting';
+            saveQueues(); // Save state
             console.log(`TA started assisting ${entry.name}`);
             
             broadcastQueues();
@@ -382,47 +437,48 @@ io.on('connection', (socket) => {
 
     // TA: Complete serving (Next student)
     socket.on('ta-next', ({ queueType }) => {
-        // If 'combined', we might want to clear ALL assisting students? 
-        // Or specific ones? The previous logic cleared ALL assisting in a queue.
-        // Let's support clearing all assisting across all queues if 'combined' is sent,
-        // or just specific queue.
-        
         const queuesToProcess = (queueType === 'combined') 
             ? ['marking', 'question'] 
             : [queueType];
 
+        let anyChanged = false;
+
         queuesToProcess.forEach(qType => {
             const queue = queues[qType];
-            const assistingIndices = [];
+            const assisting = queue.filter(item => item.status === 'assisting');
             
-            queue.forEach((item, index) => {
-                if (item.status === 'assisting') {
-                    assistingIndices.push(index);
-                }
-            });
-
-            if (assistingIndices.length > 0) {
-                for (let i = assistingIndices.length - 1; i >= 0; i--) {
-                    const removed = queue.splice(assistingIndices[i], 1)[0];
-                    console.log(`TA finished assisting ${removed.name}`);
+            if (assisting.length > 0) {
+                anyChanged = true;
+                
+                // Remove assisting students from this queue
+                queues[qType] = queue.filter(item => item.status !== 'assisting');
+                
+                assisting.forEach(removed => {
+                    console.log(`TA finished assisting ${removed.name} in ${qType} queue`);
                     
-                    emitToUser(removed.userId, 'finished-assisting', {
-                        queueType: qType,
-                        message: `The TA has finished assisting you. Hope that helped!`
+                    // Only notify the finished student if they were in the marking queue
+                    if (qType === 'marking') {
+                        emitToUser(removed.userId, 'finished-assisting', {
+                            queueType: qType,
+                            message: `The TA has finished assisting you. Hope that helped!`
+                        });
+                    }
+                });
+
+                // Only notify people moving up if this is the marking queue
+                if (qType === 'marking') {
+                    console.log('Triggering move-up notifications for marking queue');
+                    queues[qType].filter(item => item.status === 'waiting').slice(0, 3).forEach((item, idx) => {
+                        notifyUpcoming(qType, idx + 1, item.userId);
                     });
                 }
             }
         });
         
-        // Note: We don't automatically check in the next person anymore based on request "Only the student come and TA mark them"
-        broadcastQueues();
-        
-        // Notify upcoming
-        queuesToProcess.forEach(qType => {
-            queues[qType].filter(item => item.status === 'waiting').slice(0, 3).forEach((item, idx) => {
-                notifyUpcoming(qType, idx + 1, item.userId);
-            });
-        });
+        if (anyChanged) {
+            saveQueues();
+            broadcastQueues();
+        }
     });
 
     // TA: Remove specific person
@@ -432,6 +488,7 @@ io.on('connection', (socket) => {
 
         if (index !== -1) {
             const removed = queue.splice(index, 1)[0];
+            saveQueues(); // Save state
             console.log(`TA removed ${removed.name} from ${queueType} queue`);
 
             emitToUser(removed.userId, 'removed-from-queue', {
@@ -441,6 +498,20 @@ io.on('connection', (socket) => {
 
             broadcastQueues();
         }
+    });
+
+    // TA: Clear all queues
+    socket.on('ta-clear-all', () => {
+        queues.marking = [];
+        queues.question = [];
+        saveQueues();
+        console.log('TA cleared all queues');
+        broadcastQueues();
+        
+        // Notify all users they were removed
+        io.emit('removed-from-queue', {
+            message: 'The queue has been reset by the TA.'
+        });
     });
 
     // Handle disconnect

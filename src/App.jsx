@@ -47,15 +47,53 @@ function TimeAgo({ isoString }) {
   return <span className="queue-item-time">{timeLabel}</span>;
 }
 
+// GitHub Link Component
+
+function GitHubLink() {
+  return (
+    <a
+      href="https://github.com/Leo6Leo/ece297-queue"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="theme-icon-btn"
+      aria-label="View on GitHub"
+      title="View source on GitHub"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+      </svg>
+    </a>
+  );
+}
+
 // Theme Toggle Component
 function ThemeToggle({ theme, setTheme }) {
   return (
     <button
-      className="theme-toggle"
+      className="theme-icon-btn"
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      aria-label="Toggle theme"
+      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >
-      {theme === 'dark' ? '☀️' : '🌙'}
-      {theme === 'dark' ? 'Light' : 'Dark'}
+      {theme === 'dark' ? (
+        // Moon Icon (for Dark Mode -> switch to Light)
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      ) : (
+        // Sun Icon (for Light Mode -> switch to Dark)
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+      )}
     </button>
   );
 }
@@ -67,7 +105,7 @@ function Toast({ toasts, removeToast }) {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`toast ${toast.type}`}
+          className={`toast ${toast.type} ${toast.exiting ? 'exiting' : ''}`}
           onClick={() => removeToast(toast.id)}
         >
           <div className="toast-header">
@@ -86,15 +124,19 @@ function Toast({ toasts, removeToast }) {
 
 // Full Window Alert Component
 function FullWindowAlert({ message, queueType, onDismiss }) {
+  const isAutoAlert = message === "You're next! Please stay on the page.";
+
   return (
     <div className="full-window-alert">
       <div className="alert-content">
         <span className="alert-icon">🔔</span>
-        <h2 className="alert-title">It's Your Turn!</h2>
+        <h2 className="alert-title">Attention</h2>
         <p className="alert-message">{message}</p>
-        <button className="alert-btn" onClick={onDismiss}>
-          I'm Coming!
-        </button>
+        {!isAutoAlert && (
+          <button className="alert-btn" onClick={onDismiss}>
+            ACK
+          </button>
+        )}
       </div>
     </div>
   );
@@ -161,8 +203,11 @@ function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpe
       {isTA && item.status === 'waiting' && (
         <button
            className="btn btn-sm btn-secondary"
-           style={{ margin: '0 8px', padding: '4px 10px', fontSize: '0.75rem', width: 'auto' }}
-           onClick={() => onCallSpecific(item.type || queueType, item.id)}
+           style={{ margin: '0 8px', padding: '4px 10px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer', position: 'relative', zIndex: 20 }}
+           onClick={(e) => {
+             e.stopPropagation();
+             onCallSpecific(item.type || queueType, item.id);
+           }}
            title="Call this student"
         >
           Call
@@ -171,7 +216,10 @@ function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpe
       {isTA && (
         <button
           className="btn btn-icon btn-danger"
-          onClick={() => onRemove(item.id)}
+          onClick={(e) => {
+             e.stopPropagation();
+             onRemove(item.id);
+          }}
           title="Remove from queue"
         >
           ✕
@@ -280,7 +328,7 @@ function QueueCard({
             <div key={idx} style={{ marginBottom: idx < myPositions.length - 1 ? '16px' : '0', borderBottom: idx < myPositions.length - 1 ? '1px solid rgba(255,255,255,0.3)' : 'none', paddingBottom: idx < myPositions.length - 1 ? '16px' : '0' }}>
               <h3>
                 {pos.status === 'assisting' ? `You're Being Assisted (${pos.type})!` : 
-                 pos.status === 'called' ? `Go to TA Station (${pos.type})!` : `Your Position (${pos.type})`}
+                 pos.status === 'called' ? `Raise your hand (${pos.type})!` : `Your Position (${pos.type})`}
               </h3>
               
               {pos.status === 'assisting' ? (
@@ -295,7 +343,7 @@ function QueueCard({
               )}
               
               <div className="leave-btn-container" style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
-                {pos.status === 'waiting' && pos.position <= 3 && (
+                {pos.status === 'waiting' && pos.position <= 3 && waitingCount > 1 && (
                     <button 
                       className="btn btn-sm" 
                       style={{ background: 'rgba(255,255,255,0.9)', color: '#333' }}
@@ -439,7 +487,7 @@ function QueueCard({
               <button
                 type="submit"
                 className={`btn btn-${type === 'combined' ? joinType : type}`}
-                disabled={isJoining || !name.trim() || ((type === 'marking' || joinType === 'marking') && studentId.length !== 4)}
+                disabled={isJoining || !name.trim() || ((type === 'marking' || (type === 'combined' && joinType === 'marking')) && studentId.length !== 4)}
               >
                 {isJoining ? <span className="spinner"></span> : `Join Queue`}
               </button>
@@ -468,6 +516,7 @@ function HomePage({ theme, setTheme }) {
       </div>
 
       <div className="home-footer">
+        <GitHubLink />
         <ThemeToggle theme={theme} setTheme={setTheme} />
       </div>
     </div>
@@ -525,7 +574,8 @@ function TALoginPage({ onLogin, theme, setTheme }) {
           </a>
         </div>
 
-        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', gap: '12px' }}>
+          <GitHubLink />
           <ThemeToggle theme={theme} setTheme={setTheme} />
         </div>
       </div>
@@ -546,26 +596,6 @@ function StudentView({
   leaveQueue,
   pushBack
 }) {
-  // Merge and sort queues for student view (same logic as TA)
-  const combinedQueue = [
-    ...queues.marking.map(item => ({ ...item, type: 'marking' })),
-    ...queues.question.map(item => ({ ...item, type: 'question' }))
-  ].sort((a, b) => {
-    // Sort by status priority then time
-    // Priority: assisting > called > waiting
-    const statusScore = (status) => {
-      if (status === 'assisting') return 3;
-      if (status === 'called') return 2;
-      return 1;
-    };
-    
-    const scoreA = statusScore(a.status);
-    const scoreB = statusScore(b.status);
-    
-    if (scoreA !== scoreB) return scoreB - scoreA; // Higher score first
-    return new Date(a.joinedAt) - new Date(b.joinedAt); // Older time first
-  });
-
   return (
     <div className="app">
       <header className="header">
@@ -575,6 +605,7 @@ function StudentView({
           </div>
           <div className="header-controls">
             <ConnectionStatus isConnected={isConnected} />
+            <GitHubLink />
             <ThemeToggle theme={theme} setTheme={setTheme} />
           </div>
         </div>
@@ -596,18 +627,36 @@ function StudentView({
         </div>
       </header>
 
-      <main className="main-content single">
+      <main className="main-content">
         <QueueCard
-          type="combined"
-          title="All Queues"
-          icon="∑"
-          queue={combinedQueue}
-          myEntry={null} // unused in combined mode
-          allMyEntries={myEntries}
+          type="marking"
+          title="Marking Queue"
+          icon="M"
+          queue={queues.marking}
+          myEntry={myEntries.marking}
           isTA={false}
-          onJoin={joinQueue} // Pass factory
-          onLeave={leaveQueue} // Pass factory
-          onPushBack={pushBack} // Pass factory
+          onJoin={joinQueue}
+          onLeave={leaveQueue}
+          onPushBack={pushBack}
+          onCall={() => { }}
+          onCallMarking={() => { }}
+          onCallQuestion={() => { }}
+          onCallSpecific={() => { }}
+          onStartAssisting={() => { }}
+          onNext={() => { }}
+          onRemove={() => { }}
+        />
+
+        <QueueCard
+          type="question"
+          title="Question Queue"
+          icon="Q"
+          queue={queues.question}
+          myEntry={myEntries.question}
+          isTA={false}
+          onJoin={joinQueue}
+          onLeave={leaveQueue}
+          onPushBack={pushBack}
           onCall={() => { }}
           onCallMarking={() => { }}
           onCallQuestion={() => { }}
@@ -632,7 +681,8 @@ function TAView({
   taCallSpecific,
   taStartAssisting,
   taNext,
-  taRemove
+  taRemove,
+  taClearAll
 }) {
   // Merge and sort queues
   const combinedQueue = [
@@ -664,6 +714,7 @@ function TAView({
           </div>
           <div className="header-controls">
             <ConnectionStatus isConnected={isConnected} />
+            <GitHubLink />
             <ThemeToggle theme={theme} setTheme={setTheme} />
             <button className="logout-btn" onClick={onLogout}>Logout</button>
           </div>
@@ -691,6 +742,16 @@ function TAView({
           onNext={taNext('combined')}
           onRemove={taRemove('combined')}
         />
+
+        <div style={{ marginTop: '40px', padding: '20px', border: '1px solid var(--danger)', borderRadius: 'var(--radius-md)', opacity: 0.8 }}>
+          <h3 style={{ color: 'var(--danger)', marginBottom: '8px' }}>Danger Zone</h3>
+          <p style={{ fontSize: '0.875rem', marginBottom: '16px', color: 'var(--text-secondary)' }}>
+            Resetting the queue will remove everyone from all queues. This is usually done at the end of a session.
+          </p>
+          <button className="btn btn-secondary" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={taClearAll}>
+            Clear All Queues
+          </button>
+        </div>
       </main>
     </div>
   );
@@ -708,7 +769,9 @@ function App() {
     return saved || 'light';
   });
   const [page, setPage] = useState('home');
-  const [isTAAuthenticated, setIsTAAuthenticated] = useState(false);
+  const [isTAAuthenticated, setIsTAAuthenticated] = useState(() => {
+    return sessionStorage.getItem('ta_auth') === 'true';
+  });
   const [turnAlert, setTurnAlert] = useState(null);
   const [successOverlay, setSuccessOverlay] = useState(null);
 
@@ -736,6 +799,11 @@ function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, [isTAAuthenticated]);
 
+  // Sync TA Auth to session storage
+  useEffect(() => {
+    sessionStorage.setItem('ta_auth', isTAAuthenticated);
+  }, [isTAAuthenticated]);
+
   // Register identity with socket
   useEffect(() => {
     const userId = getUserId();
@@ -753,18 +821,23 @@ function App() {
     });
   }, []);
 
+  const removeToast = useCallback((id) => {
+    // Mark as exiting first
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
+    // Remove after animation
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 300);
+  }, []);
+
   // Toast management
   const addToast = useCallback((title, message, type = 'info') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, title, message, type }]);
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+      removeToast(id);
     }, 5000);
-  }, []);
-
-  const removeToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  }, [removeToast]);
 
   // Socket event handlers
   useEffect(() => {
@@ -878,6 +951,7 @@ function App() {
         ...prev,
         [data.queueType]: null
       }));
+      setTurnAlert(null);
     };
 
     const onError = (data) => {
@@ -952,7 +1026,7 @@ function App() {
       userId: getUserId()
     });
     // Optimistic toast
-    addToast('Pushing Back...', 'Delaying your turn by 2 positions.', 'info');
+    addToast('Pushing Back...', 'Delaying your turn by 1 position.', 'info');
   };
 
   const taCall = (queueType) => () => {
@@ -962,6 +1036,8 @@ function App() {
   };
   
   const taCallSpecific = (queueType, entryId) => {
+    // Debug toast to confirm action
+    addToast('Calling Student', `Sending call request...`, 'info');
     socket.emit('ta-call-specific', { queueType, entryId });
     playSuccessSound();
   };
@@ -975,6 +1051,13 @@ function App() {
     socket.emit('ta-next', { queueType });
     setSuccessOverlay(`Session finished`);
     playSuccessSound();
+  };
+
+  const taClearAll = () => {
+    if (window.confirm('Are you sure you want to CLEAR ALL queues? This cannot be undone.')) {
+      socket.emit('ta-clear-all');
+      setSuccessOverlay(`All queues cleared`);
+    }
   };
 
   const taRemove = (queueType) => (entryId) => {
@@ -1054,9 +1137,11 @@ function App() {
           setTheme={setTheme}
           onLogout={handleTALogout}
           taCall={taCall}
+          taCallSpecific={taCallSpecific}
           taStartAssisting={taStartAssisting}
           taNext={taNext}
           taRemove={taRemove}
+          taClearAll={taClearAll}
         />
       );
       break;
@@ -1068,7 +1153,7 @@ function App() {
     <>
       {content}
       <Toast toasts={toasts} removeToast={removeToast} />
-      {turnAlert && (
+      {turnAlert && !isTAAuthenticated && (
         <FullWindowAlert
           message={turnAlert.message}
           queueType={turnAlert.queueType}

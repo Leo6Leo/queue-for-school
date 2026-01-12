@@ -141,25 +141,42 @@ h6 {
   flex-wrap: wrap;
 }
 
-/* Theme Toggle */
-.theme-toggle {
+/* Theme Icon Button */
+.theme-icon-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  cursor: pointer;
-  font-size: 0.875rem;
+  justify-content: center;
   color: var(--text-secondary);
-  transition: var(--transition-normal);
+  transition: all 0.2s ease;
 }
 
-.theme-toggle:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--border-light);
+.theme-icon-btn:hover {
+  background-color: var(--bg-card-hover);
   color: var(--text-primary);
+  border-color: var(--border-light);
+  transform: rotate(15deg);
+}
+
+[data-theme="dark"] .theme-icon-btn {
+  color: #fbbf24; /* Yellow for moon in dark mode */
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="dark"] .theme-icon-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fcd34d;
+}
+
+/* Ensure SVG matches size */
+.theme-icon-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2px;
 }
 
 /* Connection Status */
@@ -710,6 +727,21 @@ h6 {
   animation: slideInRight 0.3s ease;
   max-width: 360px;
   cursor: pointer;
+}
+
+.toast.exiting {
+  animation: slideOutRight 0.3s ease forwards;
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
 }
 
 .toast.success {

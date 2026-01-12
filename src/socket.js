@@ -10,4 +10,9 @@ export const socket = io(SOCKET_URL, {
     reconnectionDelayMax: 5000,
 });
 
+// Expose for E2E testing
+if (typeof window !== 'undefined') {
+    window.socket = socket;
+}
+
 export default socket;
