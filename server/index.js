@@ -210,7 +210,7 @@ io.on('connection', (socket) => {
     });
 
     // Join question queue
-    socket.on('join-question', ({ name, email, userId }) => {
+    socket.on('join-question', ({ name, email, description, userId }) => {
         // Check if already in queue by userId
         const existingIndex = queues.question.findIndex(
             item => item.userId === userId
@@ -225,9 +225,11 @@ io.on('connection', (socket) => {
             id: uuidv4(),
             name,
             email: email || null,
+            description: description || null,
             joinedAt: new Date().toISOString(),
             userId,
-            status: 'waiting' // Added status
+            status: 'waiting', // Added status
+            followers: [] // Users who +1'd this question: { userId, name }
         };
 
         queues.question.push(entry);
@@ -263,6 +265,57 @@ io.on('connection', (socket) => {
             queue.filter(item => item.status === 'waiting').slice(0, 3).forEach((item, idx) => {
                 notifyUpcoming(queueType, idx + 1, item.userId);
             });
+        }
+    });
+
+    // Follow a question (+1)
+    socket.on('follow-question', ({ entryId, userId, name }) => {
+        const entry = queues.question.find(item => item.id === entryId);
+
+        if (!entry) {
+            socket.emit('error', { message: 'Question not found.' });
+            return;
+        }
+
+        // Check if already following
+        if (entry.followers.some(f => f.userId === userId)) {
+            socket.emit('error', { message: 'You are already following this question.' });
+            return;
+        }
+
+        // Can't follow your own question
+        if (entry.userId === userId) {
+            socket.emit('error', { message: 'You cannot follow your own question.' });
+            return;
+        }
+
+        entry.followers.push({ userId, name });
+        saveQueues();
+
+        console.log(`${name} (${userId}) is following question ${entryId}`);
+        broadcastQueues();
+
+        // Notify the user they are now following
+        emitToUser(userId, 'following-question', { entryId });
+    });
+
+    // Unfollow a question
+    socket.on('unfollow-question', ({ entryId, userId }) => {
+        const entry = queues.question.find(item => item.id === entryId);
+
+        if (!entry) {
+            return;
+        }
+
+        const followerIndex = entry.followers.findIndex(f => f.userId === userId);
+        if (followerIndex !== -1) {
+            entry.followers.splice(followerIndex, 1);
+            saveQueues();
+
+            console.log(`User ${userId} unfollowed question ${entryId}`);
+            broadcastQueues();
+
+            emitToUser(userId, 'unfollowed-question', { entryId });
         }
     });
 
@@ -373,6 +426,19 @@ io.on('connection', (socket) => {
             message: `You are called. Please raise your hand.`
         });
 
+        // Notify all followers of this question
+        if (targetQueue === 'question' && entry.followers && entry.followers.length > 0) {
+            entry.followers.forEach(follower => {
+                emitToUser(follower.userId, 'being-called', {
+                    queueType: 'question',
+                    message: `A question you're following is being answered! Please come join.`,
+                    isFollower: true,
+                    originalEntryId: entry.id
+                });
+            });
+            console.log(`Notified ${entry.followers.length} followers`);
+        }
+
         broadcastQueues();
     });
 
@@ -398,12 +464,25 @@ io.on('connection', (socket) => {
             entry.status = 'called';
             saveQueues(); // Save state
             console.log(`TA called specific student ${entry.name}`);
-            
+
             emitToUser(entry.userId, 'being-called', {
                 queueType: finalQueueType,
                 message: `TA will be with you shortly. Please raise your hand.`
             });
-            
+
+            // Notify all followers of this question
+            if (finalQueueType === 'question' && entry.followers && entry.followers.length > 0) {
+                entry.followers.forEach(follower => {
+                    emitToUser(follower.userId, 'being-called', {
+                        queueType: 'question',
+                        message: `A question you're following is being answered! Please come join.`,
+                        isFollower: true,
+                        originalEntryId: entryId
+                    });
+                });
+                console.log(`Notified ${entry.followers.length} followers`);
+            }
+
             broadcastQueues();
         }
     });
@@ -529,6 +608,19 @@ io.on('connection', (socket) => {
             // The TA can manually remove them if needed
         }
     });
+});
+
+// TA Authentication endpoint
+const TA_PASSWORD = process.env.TA_PASSWORD || 'ece297ta';
+
+app.post('/api/ta-auth', (req, res) => {
+    const { password } = req.body;
+
+    if (password === TA_PASSWORD) {
+        res.json({ success: true });
+    } else {
+        res.status(401).json({ success: false, message: 'Incorrect password' });
+    }
 });
 
 const PORT = process.env.PORT || 3001;

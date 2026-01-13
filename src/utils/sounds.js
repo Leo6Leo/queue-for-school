@@ -79,6 +79,72 @@ export const playUrgentSound = () => {
     }
 };
 
+// Play a satisfying sound for following a question (me too!)
+export const playMeTooSound = () => {
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        const playTone = (freq, startTime, duration, volume = 0.2) => {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.frequency.value = freq;
+            oscillator.type = 'sine';
+
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+            gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration);
+        };
+
+        const now = audioContext.currentTime;
+        // Rising cheerful chime
+        playTone(523.25, now, 0.1, 0.15);        // C5
+        playTone(659.25, now + 0.08, 0.1, 0.2);  // E5
+        playTone(783.99, now + 0.16, 0.15, 0.25); // G5
+        playTone(1046.50, now + 0.24, 0.2, 0.2);  // C6
+
+    } catch (e) {
+        console.log('Audio not supported:', e);
+    }
+};
+
+// Play a pop sound for unfollowing
+export const playPopSound = () => {
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(150, audioContext.currentTime + 0.08);
+        oscillator.type = 'sine';
+
+        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.08);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.08);
+
+    } catch (e) {
+        console.log('Audio not supported:', e);
+    }
+};
+
+// Play a soft click sound (keeping for compatibility)
+export const playClickSound = () => {
+    playPopSound();
+};
+
 // Play a success sound for check-in
 export const playSuccessSound = () => {
     try {

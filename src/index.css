@@ -331,12 +331,13 @@ h6 {
 .queue-item {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 12px;
   padding: 12px 16px;
   background: var(--bg-secondary);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  transition: var(--transition-normal);
+  transition: all 0.3s ease;
   animation: slideIn 0.3s ease;
 }
 
@@ -397,7 +398,9 @@ h6 {
 
 .queue-item-info {
   flex: 1;
-  min-width: 0;
+  min-width: 80px;
+  overflow: hidden;
+  transition: all 0.3s ease;
 }
 
 .queue-item-name {
@@ -496,6 +499,136 @@ h6 {
 .queue-item-id {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.queue-item-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-height: 1.5em;
+  transition: all 0.3s ease;
+}
+
+.queue-item-description.expanded {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-height: 500px;
+}
+
+.queue-item.is-expandable {
+  cursor: pointer;
+}
+
+.queue-item.is-expandable:hover {
+  background: var(--bg-card-hover);
+}
+
+.queue-item.is-expanded {
+  align-items: flex-start;
+}
+
+.queue-item.is-expanded .queue-position {
+  margin-top: 4px;
+}
+
+.expand-indicator {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-left: 8px;
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.queue-item.is-expanded .expand-indicator {
+  transform: rotate(90deg);
+}
+
+.queue-item-followers {
+  font-size: 0.75rem;
+  color: var(--question-primary);
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--question-primary);
+  max-height: 200px;
+  opacity: 1;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.queue-item-followers.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.followers-label {
+  font-weight: 600;
+}
+
+/* Follow button and follower badge */
+.btn-follow {
+  background: linear-gradient(135deg, var(--question-primary), #059669);
+  border: none;
+  color: white;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  width: auto !important;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-follow:hover {
+  background: linear-gradient(135deg, #059669, var(--question-primary));
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.btn-following {
+  background: white;
+  border: 2px solid var(--question-primary);
+  color: var(--question-primary);
+  padding: 5px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  width: auto !important;
+  flex-shrink: 0;
+}
+
+.btn-following:hover {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.follower-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--question-primary);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 6px;
 }
 
 .queue-item-time {

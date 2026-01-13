@@ -8,7 +8,9 @@ import {
 import {
   playNotificationSound,
   playUrgentSound,
-  playSuccessSound
+  playSuccessSound,
+  playPopSound,
+  playMeTooSound
 } from './utils/sounds';
 import {
   getUserId,
@@ -16,8 +18,19 @@ import {
 } from './utils/userIdentity';
 import './App.css';
 
-// TA Password - In production, this should be environment variable or server-side auth
-const TA_PASSWORD = 'ece297ta';
+// Get the API base URL dynamically
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // In production, use same host; in dev, use localhost:3001
+  if (import.meta.env.DEV) {
+    return 'http://localhost:3001';
+  }
+  return window.location.origin;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Format time ago
 const formatTimeAgo = (isoString) => {
@@ -174,12 +187,32 @@ function ConnectionStatus({ isConnected }) {
 }
 
 // Queue Item component
-function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpecific }) {
+function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpecific, currentUserId, onFollow, onUnfollow, inputName }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const isAssisting = item.status === 'assisting';
   const isCalled = item.status === 'called';
+  const isQuestionType = queueType === 'question' || item.type === 'question';
+  const isFollowing = item.followers?.some(f => f.userId === currentUserId);
+  const followerCount = item.followers?.length || 0;
+  const canFollow = !isTA && isQuestionType && !isYou && item.userId !== currentUserId && item.status === 'waiting' && item.description;
+  // Only show expand if description is long enough (>50 chars) or has followers
+  const descriptionIsLong = item.description && item.description.length > 50;
+  const hasFollowers = item.followers && item.followers.length > 0;
+  // Allow expand for TA (long description + followers) or for students viewing question queue items with long description
+  const hasExpandableContent = (isTA && (descriptionIsLong || hasFollowers)) ||
+                               (!isTA && isQuestionType && descriptionIsLong);
+
+  const handleCardClick = () => {
+    if (hasExpandableContent) {
+      setIsExpanded(!isExpanded);
+    }
+  };
 
   return (
-    <li className={`queue-item ${isYou ? 'is-you' : ''} ${isAssisting ? 'is-assisting' : ''} ${isCalled ? 'is-called' : ''}`}>
+    <li
+      className={`queue-item ${isYou ? 'is-you' : ''} ${isAssisting ? 'is-assisting' : ''} ${isCalled ? 'is-called' : ''} ${isExpanded ? 'is-expanded' : ''} ${hasExpandableContent ? 'is-expandable' : ''}`}
+      onClick={handleCardClick}
+    >
       <span className={`queue-position ${isAssisting ? 'assisting' : isCalled ? 'called' : position === 1 ? 'first' : position === 2 ? 'second' : position === 3 ? 'third' : ''}`}>
         {isAssisting ? '●' : isCalled ? '!' : position}
       </span>
@@ -194,12 +227,47 @@ function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpe
                {(item.type === 'marking' ? 'M' : 'Q')}
              </span>
           )}
+          {followerCount > 0 && (
+            <span className="follower-badge" title={`${followerCount} student${followerCount > 1 ? 's' : ''} with same question`}>
+              +{followerCount}
+            </span>
+          )}
+          {hasExpandableContent && (
+            <span className="expand-indicator">▶</span>
+          )}
         </div>
         {(queueType === 'marking' || item.type === 'marking') && (
           <div className="queue-item-id">ID: ****{item.studentId}</div>
         )}
+        {item.description && (
+          <div className={`queue-item-description ${isExpanded ? 'expanded' : ''}`}>{item.description}</div>
+        )}
+        {isTA && item.followers && item.followers.length > 0 && (
+          <div className={`queue-item-followers ${isExpanded ? '' : 'collapsed'}`}>
+            <span className="followers-label">Same question:</span> {item.followers.map(f => f.name).join(', ')}
+          </div>
+        )}
       </div>
       <TimeAgo isoString={item.joinedAt} />
+      {canFollow && (
+        <button
+          className={`btn btn-sm ${isFollowing ? 'btn-following' : 'btn-follow'}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isFollowing) {
+              onUnfollow(item.id);
+            } else {
+              onFollow(item.id, inputName);
+            }
+          }}
+          title={isFollowing ? 'Click to unfollow this question' : 'Click if you have the same question - you\'ll be notified when it\'s answered'}
+        >
+          {isFollowing ? '✓ Following' : '🙋 Me too!'}
+        </button>
+      )}
+      {isFollowing && isCalled && (
+        <span className="status-badge called">Come join!</span>
+      )}
       {isTA && item.status === 'waiting' && (
         <button
            className="btn btn-sm btn-secondary"
@@ -247,11 +315,14 @@ function QueueCard({
   onStartAssisting,
   onNext,
   onPushBack,
-  onRemove
+  onRemove,
+  onFollow,
+  onUnfollow
 }) {
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [email, setEmail] = useState('');
+  const [description, setDescription] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [joinType, setJoinType] = useState('marking'); // For combined view joining
 
@@ -274,8 +345,10 @@ function QueueCard({
       name: name.trim(),
       studentId: studentId.trim(),
       email: email.trim(),
+      description: description.trim(),
       userId: getUserId()
     });
+    setDescription('');
     setIsJoining(false);
   };
 
@@ -378,6 +451,10 @@ function QueueCard({
               queueType={type}
               onRemove={onRemove}
               onCallSpecific={onCallSpecific}
+              currentUserId={getUserId()}
+              onFollow={onFollow}
+              onUnfollow={onUnfollow}
+              inputName={name}
             />
           ))}
         </ul>
@@ -473,6 +550,21 @@ function QueueCard({
                 </div>
               )}
 
+              {(type === 'question' || (type === 'combined' && joinType === 'question')) && (
+                <div className="form-group">
+                  <label className="form-label">Brief Description (optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g., Need help with pathfinding algorithm"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    maxLength={100}
+                  />
+                </div>
+              )}
+
+              {/* Email field temporarily hidden
               <div className="form-group">
                 <label className="form-label">Email (optional, for notifications)</label>
                 <input
@@ -483,6 +575,7 @@ function QueueCard({
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
+              */}
 
               <button
                 type="submit"
@@ -527,14 +620,35 @@ function HomePage({ theme, setTheme }) {
 function TALoginPage({ onLogin, theme, setTheme }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (password === TA_PASSWORD) {
-      onLogin();
-    } else {
-      setError('Incorrect password');
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/ta-auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        onLogin();
+      } else {
+        setError('Incorrect password');
+        setPassword('');
+      }
+    } catch {
+      setError('Authentication failed. Please try again.');
       setPassword('');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -563,8 +677,8 @@ function TALoginPage({ onLogin, theme, setTheme }) {
             />
           </div>
 
-          <button type="submit" className="btn btn-marking">
-            Login
+          <button type="submit" className="btn btn-marking" disabled={isLoading}>
+            {isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
@@ -594,7 +708,9 @@ function StudentView({
   onEnableNotifications,
   joinQueue,
   leaveQueue,
-  pushBack
+  pushBack,
+  followQuestion,
+  unfollowQuestion
 }) {
   return (
     <div className="app">
@@ -645,6 +761,8 @@ function StudentView({
           onStartAssisting={() => { }}
           onNext={() => { }}
           onRemove={() => { }}
+          onFollow={followQuestion}
+          onUnfollow={unfollowQuestion}
         />
 
         <QueueCard
@@ -664,6 +782,8 @@ function StudentView({
           onStartAssisting={() => { }}
           onNext={() => { }}
           onRemove={() => { }}
+          onFollow={followQuestion}
+          onUnfollow={unfollowQuestion}
         />
       </main>
     </div>
@@ -741,6 +861,8 @@ function TAView({
           onStartAssisting={taStartAssisting('combined')}
           onNext={taNext('combined')}
           onRemove={taRemove('combined')}
+          onFollow={() => { }}
+          onUnfollow={() => { }}
         />
 
         <div style={{ marginTop: '40px', padding: '20px', border: '1px solid var(--danger)', borderRadius: 'var(--radius-md)', opacity: 0.8 }}>
@@ -1004,6 +1126,10 @@ function App() {
 
   // Queue actions
   const joinQueue = (queueType) => (data) => {
+    // Store user's name for future use (e.g., when following questions)
+    if (data.name) {
+      localStorage.setItem('queue_user_name', data.name);
+    }
     if (queueType === 'marking') {
       socket.emit('join-marking', data);
     } else {
@@ -1027,6 +1153,40 @@ function App() {
     });
     // Optimistic toast
     addToast('Pushing Back...', 'Delaying your turn by 1 position.', 'info');
+  };
+
+  const followQuestion = (entryId, inputName) => {
+    const userId = getUserId();
+
+    // Try to get user's name from: 1) input box, 2) existing queue entry, 3) localStorage
+    const userEntry = queues.marking.find(e => e.userId === userId) ||
+                      queues.question.find(e => e.userId === userId);
+    let name = inputName?.trim() || userEntry?.name || localStorage.getItem('queue_user_name');
+
+    if (!name) {
+      addToast('Name Required', 'Please enter your name in the form first.', 'error');
+      return;
+    }
+
+    // Store for future use
+    localStorage.setItem('queue_user_name', name);
+
+    socket.emit('follow-question', {
+      entryId,
+      userId,
+      name
+    });
+    playMeTooSound();
+    addToast('Following Question', 'You will be notified when this question is answered.', 'success');
+  };
+
+  const unfollowQuestion = (entryId) => {
+    socket.emit('unfollow-question', {
+      entryId,
+      userId: getUserId()
+    });
+    playPopSound();
+    addToast('Unfollowed', 'You will no longer be notified for this question.', 'info');
   };
 
   const taCall = (queueType) => () => {
@@ -1116,6 +1276,8 @@ function App() {
           joinQueue={joinQueue}
           leaveQueue={leaveQueue}
           pushBack={pushBack}
+          followQuestion={followQuestion}
+          unfollowQuestion={unfollowQuestion}
         />
       );
       break;
