@@ -60,6 +60,23 @@ function TimeAgo({ isoString }) {
   return <span className="queue-item-time">{timeLabel}</span>;
 }
 
+// Home Link Component
+function HomeLink() {
+  return (
+    <a
+      href="#"
+      className="theme-icon-btn"
+      aria-label="Back to Home"
+      title="Back to Home"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+    </a>
+  );
+}
+
 // GitHub Link Component
 
 function GitHubLink() {
@@ -105,6 +122,40 @@ function ThemeToggle({ theme, setTheme }) {
           <line x1="21" y1="12" x2="23" y2="12"></line>
           <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// Notification Toggle Component
+function NotificationToggle({ status, onEnable }) {
+  if (status === 'unsupported') return null;
+
+  const isEnabled = status === 'granted';
+
+  return (
+    <button
+      className={`theme-icon-btn ${isEnabled ? 'enabled' : ''}`}
+      onClick={!isEnabled ? onEnable : undefined}
+      disabled={isEnabled}
+      aria-label={isEnabled ? "Notifications Enabled" : "Enable Notifications"}
+      title={isEnabled ? "Notifications Enabled" : "Enable Notifications"}
+      style={isEnabled ? { color: 'var(--success)', borderColor: 'var(--success)', cursor: 'default' } : {}}
+    >
+      {isEnabled ? (
+        // Bell with Check (Enabled)
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+      ) : (
+        // Bell Off (Disabled)
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          <line x1="2" y1="2" x2="22" y2="22"></line>
         </svg>
       )}
     </button>
@@ -187,7 +238,7 @@ function ConnectionStatus({ isConnected }) {
 }
 
 // Queue Item component
-function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpecific, currentUserId, onFollow, onUnfollow, inputName }) {
+function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpecific, onCancelCall, currentUserId, onFollow, onUnfollow, inputName }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isAssisting = item.status === 'assisting';
   const isCalled = item.status === 'called';
@@ -281,6 +332,19 @@ function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpe
           Call
         </button>
       )}
+      {isTA && item.status === 'called' && (
+        <button
+           className="btn btn-sm btn-secondary"
+           style={{ margin: '0 8px', padding: '4px 10px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer', position: 'relative', zIndex: 20, color: 'var(--warning)', borderColor: 'var(--warning)' }}
+           onClick={(e) => {
+             e.stopPropagation();
+             onCancelCall(item.type || queueType, item.id);
+           }}
+           title="Cancel call (return to waiting)"
+        >
+          Cancel
+        </button>
+      )}
       {isTA && (
         <button
           className="btn btn-icon btn-danger"
@@ -312,6 +376,7 @@ function QueueCard({
   onCallMarking,
   onCallQuestion,
   onCallSpecific,
+  onCancelCall,
   onStartAssisting,
   onNext,
   onPushBack,
@@ -396,7 +461,7 @@ function QueueCard({
 
       {/* Your position banner (student view only) */}
       {!isTA && myPositions.length > 0 && (
-        <div className="your-position">
+        <div className={`your-position ${myPositions.some(p => p.status === 'called') ? 'is-called' : myPositions.some(p => p.status === 'assisting') ? 'is-assisting' : ''}`}>
           {myPositions.map((pos, idx) => (
             <div key={idx} style={{ marginBottom: idx < myPositions.length - 1 ? '16px' : '0', borderBottom: idx < myPositions.length - 1 ? '1px solid rgba(255,255,255,0.3)' : 'none', paddingBottom: idx < myPositions.length - 1 ? '16px' : '0' }}>
               <h3>
@@ -425,13 +490,15 @@ function QueueCard({
                       Push Back
                     </button>
                 )}
-                <button 
-                    className="btn btn-sm" 
-                    style={{ color: 'white', borderColor: 'white' }}
-                    onClick={onLeave(pos.type, pos.entryId)}
-                >
-                  Leave Queue
-                </button>
+                {pos.status !== 'assisting' && (
+                  <button 
+                      className="btn btn-sm" 
+                      style={{ color: 'white', borderColor: 'white' }}
+                      onClick={onLeave(pos.type, pos.entryId)}
+                  >
+                    Leave Queue
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -451,6 +518,7 @@ function QueueCard({
               queueType={type}
               onRemove={onRemove}
               onCallSpecific={onCallSpecific}
+              onCancelCall={onCancelCall}
               currentUserId={getUserId()}
               onFollow={onFollow}
               onUnfollow={onUnfollow}
@@ -473,13 +541,22 @@ function QueueCard({
               Finish Assisting
             </button>
           ) : isTopCalled ? (
-             <button 
-               className={`btn btn-success`}
-               style={{ background: '#22c55e', color: 'white' }} 
-               onClick={() => onStartAssisting(topItem.id)}
-             >
-               Start Assisting {topItem.name}
-             </button>
+             <>
+               <button 
+                 className={`btn btn-success`}
+                 style={{ background: '#22c55e', color: 'white', flex: 2 }} 
+                 onClick={() => onStartAssisting(topItem.id)}
+               >
+                 Start Assisting {topItem.name}
+               </button>
+               <button 
+                 className={`btn btn-secondary`}
+                 style={{ color: 'var(--warning)', borderColor: 'var(--warning)', flex: 1 }}
+                 onClick={() => onCancelCall(topItem.type || type, topItem.id)}
+               >
+                 Cancel Call
+               </button>
+             </>
           ) : type === 'combined' ? (
              <>
                 <button className="btn btn-marking" onClick={onCallMarking}>Next Marking</button>
@@ -717,10 +794,11 @@ function StudentView({
       <header className="header">
         <div className="page-header">
           <div className="page-header-left">
-            <a href="#" className="back-link">← Home</a>
+            <HomeLink />
           </div>
           <div className="header-controls">
             <ConnectionStatus isConnected={isConnected} />
+            <NotificationToggle status={notificationStatus} onEnable={onEnableNotifications} />
             <GitHubLink />
             <ThemeToggle theme={theme} setTheme={setTheme} />
           </div>
@@ -728,19 +806,6 @@ function StudentView({
 
         <h1>ECE297 Queue</h1>
         <p>Join a queue below and wait for your turn</p>
-
-        <div className="header-controls">
-          {notificationStatus !== 'granted' && notificationStatus !== 'unsupported' && (
-            <button className="notification-btn" onClick={onEnableNotifications}>
-              Enable Notifications
-            </button>
-          )}
-          {notificationStatus === 'granted' && (
-            <button className="notification-btn enabled" disabled>
-              Notifications Enabled
-            </button>
-          )}
-        </div>
       </header>
 
       <main className="main-content">
@@ -799,6 +864,7 @@ function TAView({
   onLogout,
   taCall,
   taCallSpecific,
+  taCancelCall,
   taStartAssisting,
   taNext,
   taRemove,
@@ -858,6 +924,7 @@ function TAView({
           onCallMarking={taCall('marking')}
           onCallQuestion={taCall('question')}
           onCallSpecific={taCallSpecific}
+          onCancelCall={taCancelCall}
           onStartAssisting={taStartAssisting('combined')}
           onNext={taNext('combined')}
           onRemove={taRemove('combined')}
@@ -1059,12 +1126,17 @@ function App() {
     
     const onPushedBack = (data) => {
       addToast('Pushed Back', `You are now #${data.position} in the queue.`, 'info');
+      setTurnAlert(null); // Dismiss any turn alerts
     };
 
     const onFinishedAssisting = (data) => {
       addToast('Session Finished', data.message, 'success');
       playSuccessSound();
       // Status will be updated via queues-update (entry removed)
+    };
+
+    const onAssistingStarted = (data) => {
+      setTurnAlert(null); // Dismiss alert when TA starts assisting
     };
 
     const onRemovedFromQueue = (data) => {
@@ -1090,6 +1162,7 @@ function App() {
     socket.on('being-called', onBeingCalled);
     socket.on('pushed-back', onPushedBack);
     socket.on('finished-assisting', onFinishedAssisting);
+    socket.on('assisting-started', onAssistingStarted);
     socket.on('removed-from-queue', onRemovedFromQueue);
     socket.on('error', onError);
 
@@ -1109,6 +1182,7 @@ function App() {
       socket.off('being-called', onBeingCalled);
       socket.off('pushed-back', onPushedBack);
       socket.off('finished-assisting', onFinishedAssisting);
+      socket.off('assisting-started', onAssistingStarted);
       socket.off('removed-from-queue', onRemovedFromQueue);
       socket.off('error', onError);
     };
@@ -1117,10 +1191,14 @@ function App() {
   // Handle notification permission
   const handleEnableNotifications = async () => {
     const granted = await requestNotificationPermission();
-    setNotificationStatus(getNotificationPermissionStatus());
+    const status = getNotificationPermissionStatus();
+    setNotificationStatus(status);
+    
     if (granted) {
       addToast('Notifications Enabled', 'You will receive alerts when your turn approaches.', 'success');
       playNotificationSound(); // Test sound
+    } else if (status === 'denied') {
+      addToast('Notifications Blocked', 'Please enable notifications in your browser settings (address bar).', 'error');
     }
   };
 
@@ -1200,6 +1278,11 @@ function App() {
     addToast('Calling Student', `Sending call request...`, 'info');
     socket.emit('ta-call-specific', { queueType, entryId });
     playSuccessSound();
+  };
+  
+  const taCancelCall = (queueType, entryId) => {
+    socket.emit('ta-cancel-call', { queueType, entryId });
+    addToast('Call Cancelled', 'Student returned to waiting status.', 'info');
   };
   
   const taStartAssisting = (queueType) => (entryId) => {
@@ -1300,6 +1383,7 @@ function App() {
           onLogout={handleTALogout}
           taCall={taCall}
           taCallSpecific={taCallSpecific}
+          taCancelCall={taCancelCall}
           taStartAssisting={taStartAssisting}
           taNext={taNext}
           taRemove={taRemove}

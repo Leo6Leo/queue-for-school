@@ -487,6 +487,43 @@ io.on('connection', (socket) => {
         }
     });
 
+    // TA: Cancel Call (Return to waiting)
+    socket.on('ta-cancel-call', ({ queueType, entryId }) => {
+        // Find entry in specific queue or search both
+        let entry;
+        let finalQueueType = queueType;
+
+        if (queueType === 'combined') {
+             // Find entry by ID in either queue
+             entry = queues.marking.find(i => i.id === entryId);
+             if (entry) finalQueueType = 'marking';
+             else {
+                 entry = queues.question.find(i => i.id === entryId);
+                 if (entry) finalQueueType = 'question';
+             }
+        } else {
+             entry = queues[queueType].find(item => item.id === entryId);
+        }
+
+        if (entry && entry.status === 'called') {
+            entry.status = 'waiting';
+            saveQueues();
+            console.log(`TA cancelled call for ${entry.name}`);
+
+            // Calculate current position
+            const queue = queues[finalQueueType];
+            const position = queue.filter(item => item.status === 'waiting' || item.status === 'called').indexOf(entry) + 1;
+
+            // Optional: Notify user that call was cancelled (using pushed-back or info message)
+            emitToUser(entry.userId, 'pushed-back', {
+                queueType: finalQueueType,
+                position: position
+            });
+
+            broadcastQueues();
+        }
+    });
+
     // TA: Start Assisting (Student has arrived)
     socket.on('ta-start-assisting', ({ queueType, entryId }) => {
         // Find entry in specific queue or search both
@@ -510,6 +547,11 @@ io.on('connection', (socket) => {
             saveQueues(); // Save state
             console.log(`TA started assisting ${entry.name}`);
             
+            emitToUser(entry.userId, 'assisting-started', {
+                queueType: finalQueueType,
+                message: `The TA has started assisting you.`
+            });
+
             broadcastQueues();
         }
     });
