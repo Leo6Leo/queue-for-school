@@ -842,8 +842,8 @@ h6 {
 /* Notification Toast */
 .toast-container {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  top: 80px; /* Below the header link */
+  left: 24px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -857,23 +857,23 @@ h6 {
   border-radius: var(--radius-md);
   backdrop-filter: blur(20px);
   box-shadow: var(--shadow-lg);
-  animation: slideInRight 0.3s ease;
+  animation: slideInLeft 0.3s ease;
   max-width: 360px;
   cursor: pointer;
 }
 
 .toast.exiting {
-  animation: slideOutRight 0.3s ease forwards;
+  animation: slideOutLeft 0.3s ease forwards;
 }
 
-@keyframes slideOutRight {
+@keyframes slideOutLeft {
   from {
     opacity: 1;
     transform: translateX(0);
   }
   to {
     opacity: 0;
-    transform: translateX(100%);
+    transform: translateX(-100%);
   }
 }
 
@@ -1110,6 +1110,18 @@ h6 {
   from {
     opacity: 0;
     transform: translateX(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
   }
 
   to {
