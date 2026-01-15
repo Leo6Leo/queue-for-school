@@ -1,4 +1,4 @@
-# ECE297 Queue Management System
+# In-person School Queue Management System
 
 A real-time queue management system for TA practical sessions. Built with React + Socket.IO.
 
