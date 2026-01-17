@@ -946,6 +946,37 @@ function TAView({
   );
 }
 
+// Helper to get room from URL
+const getRoomFromUrl = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('ta');
+};
+
+// No Room Error Page
+function NoRoomPage({ theme, setTheme }) {
+  return (
+    <div className="home-page">
+      <h1 className="home-title">ECE297 Queue</h1>
+      <p className="home-subtitle">Queue Management System</p>
+      
+      <div className="login-card" style={{ maxWidth: '500px' }}>
+        <h2 style={{ color: 'var(--danger)', marginBottom: '16px' }}>Invalid Link</h2>
+        <p style={{ marginBottom: '24px' }}>
+          Please use the link provided by your TA (e.g., ?ta=name).
+        </p>
+        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+          No specific TA room was found in the URL.
+        </p>
+      </div>
+
+      <div className="home-footer">
+        <GitHubLink />
+        <ThemeToggle theme={theme} setTheme={setTheme} />
+      </div>
+    </div>
+  );
+}
+
 // Main App
 function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
@@ -963,6 +994,9 @@ function App() {
   });
   const [turnAlert, setTurnAlert] = useState(null);
   const [successOverlay, setSuccessOverlay] = useState(null);
+  
+  // Get room from URL
+  const [room] = useState(getRoomFromUrl);
 
   // Apply theme
   useEffect(() => {
@@ -997,10 +1031,10 @@ function App() {
   useEffect(() => {
     const userId = getUserId();
 
-    if (isConnected) {
-      socket.emit('register-user', { userId });
+    if (isConnected && room) {
+      socket.emit('register-user', { userId, room });
     }
-  }, [isConnected]);
+  }, [isConnected, room]);
 
   // Listen for user data changes from other tabs
   useEffect(() => {
@@ -1030,11 +1064,13 @@ function App() {
 
   // Socket event handlers
   useEffect(() => {
+    if (!room) return; // Don't setup socket listeners if no room
+
     const onConnect = () => {
       setIsConnected(true);
       addToast('Connected', 'You are now connected to the queue server.', 'success');
       // Re-register user on reconnect
-      socket.emit('register-user', { userId: getUserId() });
+      socket.emit('register-user', { userId: getUserId(), room });
     };
 
     const onDisconnect = () => {
@@ -1168,7 +1204,7 @@ function App() {
 
     if (socket.connected) {
       setIsConnected(true);
-      socket.emit('register-user', { userId: getUserId() });
+      socket.emit('register-user', { userId: getUserId(), room });
     }
 
     return () => {
@@ -1186,7 +1222,12 @@ function App() {
       socket.off('removed-from-queue', onRemovedFromQueue);
       socket.off('error', onError);
     };
-  }, [addToast]);
+  }, [addToast, room]);
+
+  // If no room is provided, show error page
+  if (!room) {
+    return <NoRoomPage theme={theme} setTheme={setTheme} />;
+  }
 
   // Handle notification permission
   const handleEnableNotifications = async () => {
@@ -1208,10 +1249,11 @@ function App() {
     if (data.name) {
       localStorage.setItem('queue_user_name', data.name);
     }
+    const payload = { ...data, room };
     if (queueType === 'marking') {
-      socket.emit('join-marking', data);
+      socket.emit('join-marking', payload);
     } else {
-      socket.emit('join-question', data);
+      socket.emit('join-question', payload);
     }
   };
 
@@ -1219,7 +1261,8 @@ function App() {
     socket.emit('leave-queue', {
       queueType,
       entryId,
-      userId: getUserId()
+      userId: getUserId(),
+      room
     });
   };
   
@@ -1227,7 +1270,8 @@ function App() {
     socket.emit('push-back', {
       queueType,
       entryId,
-      userId: getUserId()
+      userId: getUserId(),
+      room
     });
     // Optimistic toast
     addToast('Pushing Back...', 'Delaying your turn by 1 position.', 'info');
@@ -1252,7 +1296,8 @@ function App() {
     socket.emit('follow-question', {
       entryId,
       userId,
-      name
+      name,
+      room
     });
     playMeTooSound();
     addToast('Following Question', 'You will be notified when this question is answered.', 'success');
@@ -1261,14 +1306,15 @@ function App() {
   const unfollowQuestion = (entryId) => {
     socket.emit('unfollow-question', {
       entryId,
-      userId: getUserId()
+      userId: getUserId(),
+      room
     });
     playPopSound();
     addToast('Unfollowed', 'You will no longer be notified for this question.', 'info');
   };
 
   const taCall = (queueType) => () => {
-    socket.emit('ta-checkin', { queueType });
+    socket.emit('ta-checkin', { queueType, room });
     setSuccessOverlay(`Called next student`);
     playSuccessSound();
   };
@@ -1276,29 +1322,29 @@ function App() {
   const taCallSpecific = (queueType, entryId) => {
     // Debug toast to confirm action
     addToast('Calling Student', `Sending call request...`, 'info');
-    socket.emit('ta-call-specific', { queueType, entryId });
+    socket.emit('ta-call-specific', { queueType, entryId, room });
     playSuccessSound();
   };
   
   const taCancelCall = (queueType, entryId) => {
-    socket.emit('ta-cancel-call', { queueType, entryId });
+    socket.emit('ta-cancel-call', { queueType, entryId, room });
     addToast('Call Cancelled', 'Student returned to waiting status.', 'info');
   };
   
   const taStartAssisting = (queueType) => (entryId) => {
-     socket.emit('ta-start-assisting', { queueType, entryId });
+     socket.emit('ta-start-assisting', { queueType, entryId, room });
      // No overlay needed, UI updates immediately
   };
 
   const taNext = (queueType) => () => {
-    socket.emit('ta-next', { queueType });
+    socket.emit('ta-next', { queueType, room });
     setSuccessOverlay(`Session finished`);
     playSuccessSound();
   };
 
   const taClearAll = () => {
     if (window.confirm('Are you sure you want to CLEAR ALL queues? This cannot be undone.')) {
-      socket.emit('ta-clear-all');
+      socket.emit('ta-clear-all', { room });
       setSuccessOverlay(`All queues cleared`);
     }
   };
@@ -1318,10 +1364,10 @@ function App() {
           // But here we are looking at raw queues state which doesn't have 'type' prop injected
           // We can infer type by checking which queue it is in
           const type = queues.marking.find(i => i.id === entryId) ? 'marking' : 'question';
-          socket.emit('ta-remove', { queueType: type, entryId });
+          socket.emit('ta-remove', { queueType: type, entryId, room });
        }
     } else {
-       socket.emit('ta-remove', { queueType, entryId });
+       socket.emit('ta-remove', { queueType, entryId, room });
     }
   };
 

@@ -23,11 +23,8 @@ const io = new Server(httpServer, {
     }
 });
 
-// Queue storage
-let queues = {
-    marking: [],    // { id, name, studentId, joinedAt, userId, email }
-    question: []    // { id, name, joinedAt, userId, email }
-};
+// Room storage: Map<roomName, { marking: [], question: [] }>
+let rooms = new Map();
 
 // Persistence functions
 let isSaving = false;
@@ -40,14 +37,27 @@ const saveQueues = () => {
     }
 
     isSaving = true;
-    fs.writeFile(DATA_FILE, JSON.stringify(queues, null, 2), (err) => {
-        isSaving = false;
-        if (err) console.error('Error saving queue data:', err);
-        
-        if (saveScheduled) {
-            saveScheduled = false;
-            saveQueues();
+    // Convert Map to Object for JSON serialization
+    const dataToSave = Object.fromEntries(rooms);
+    const tempFile = `${DATA_FILE}.tmp`;
+    
+    fs.writeFile(tempFile, JSON.stringify(dataToSave, null, 2), (err) => {
+        if (err) {
+            console.error('Error writing temp queue data:', err);
+            isSaving = false;
+            return;
         }
+
+        // Atomic rename
+        fs.rename(tempFile, DATA_FILE, (renameErr) => {
+            isSaving = false;
+            if (renameErr) console.error('Error renaming queue data file:', renameErr);
+            
+            if (saveScheduled) {
+                saveScheduled = false;
+                saveQueues();
+            }
+        });
     });
 };
 
@@ -55,12 +65,22 @@ const loadQueues = () => {
     try {
         if (fs.existsSync(DATA_FILE)) {
             const data = fs.readFileSync(DATA_FILE, 'utf8');
-            queues = JSON.parse(data);
+            const parsedData = JSON.parse(data);
+            // Convert Object back to Map
+            rooms = new Map(Object.entries(parsedData));
             console.log('Queue data loaded from disk.');
         }
     } catch (err) {
         console.error('Error loading queue data:', err);
     }
+};
+
+// Helper to get or create room
+const getRoom = (roomName) => {
+    if (!rooms.has(roomName)) {
+        rooms.set(roomName, { marking: [], question: [] });
+    }
+    return rooms.get(roomName);
 };
 
 // Load initial data
@@ -101,8 +121,10 @@ const isUserConnected = (userId) => {
     return userSockets.has(userId) && userSockets.get(userId).size > 0;
 };
 
-// Broadcast queue updates to all clients
-const broadcastQueues = () => {
+// Broadcast queue updates to a specific room
+const broadcastQueues = (roomName) => {
+    const queues = getRoom(roomName);
+    
     const getQueueWithPositions = (queue) => {
         let waitingCount = 0;
         return queue.map((item) => {
@@ -114,14 +136,14 @@ const broadcastQueues = () => {
         });
     };
 
-    io.emit('queues-update', {
+    io.to(roomName).emit('queues-update', {
         marking: getQueueWithPositions(queues.marking),
         question: getQueueWithPositions(queues.question)
     });
 };
 
 // Notify user when their turn is approaching
-const notifyUpcoming = (queueType, position, userId) => {
+const notifyUpcoming = (roomName, queueType, position, userId) => {
     if (queueType === 'question') return; // Do not notify question queue
 
     // Notify if they are next (1) or have 1 person ahead (2)
@@ -140,17 +162,27 @@ io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
 
     let currentUserId = null;
+    let currentRoom = null;
 
-    // Register user with their persistent ID
-    socket.on('register-user', ({ userId }) => {
+    // Register user with their persistent ID and room
+    socket.on('register-user', ({ userId, room }) => {
+        if (!room) return; // Ignore if no room specified
+        
         currentUserId = userId;
+        currentRoom = room;
+        
+        // Join the socket.io room
+        socket.join(room);
+        
         registerUserSocket(userId, socket.id);
-        console.log(`User ${userId} registered with socket ${socket.id}`);
+        console.log(`User ${userId} registered in room ${room}`);
 
-        // Send current queue state
-        broadcastQueues();
+        // Send current queue state for this room
+        broadcastQueues(room);
 
-        // Check if user is already in any queue and send their entries
+        // Check if user is already in any queue in this room and send their entries
+        const queues = getRoom(room);
+        
         const getEntryInfo = (queue) => {
             const entry = queue.find(item => item.userId === userId);
             if (!entry) return null;
@@ -173,8 +205,11 @@ io.on('connection', (socket) => {
         });
     });
 
-// Join marking queue
-    socket.on('join-marking', ({ name, studentId, email, userId }) => {
+    // Join marking queue
+    socket.on('join-marking', ({ name, studentId, email, userId, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
+        
         // Check if already in queue by userId
         const existingIndex = queues.marking.findIndex(
             item => item.userId === userId
@@ -192,14 +227,14 @@ io.on('connection', (socket) => {
             email: email || null,
             joinedAt: new Date().toISOString(),
             userId,
-            status: 'waiting' // Added status
+            status: 'waiting'
         };
 
         queues.marking.push(entry);
-        saveQueues(); // Save state
+        saveQueues();
 
-        console.log(`${name} (${userId}) joined marking queue`);
-        broadcastQueues();
+        console.log(`${name} (${userId}) joined marking queue in room ${room}`);
+        broadcastQueues(room);
 
         // Notify all tabs of this user
         emitToUser(userId, 'joined-queue', {
@@ -210,7 +245,10 @@ io.on('connection', (socket) => {
     });
 
     // Join question queue
-    socket.on('join-question', ({ name, email, description, userId }) => {
+    socket.on('join-question', ({ name, email, description, userId, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
+        
         // Check if already in queue by userId
         const existingIndex = queues.question.findIndex(
             item => item.userId === userId
@@ -228,17 +266,16 @@ io.on('connection', (socket) => {
             description: description || null,
             joinedAt: new Date().toISOString(),
             userId,
-            status: 'waiting', // Added status
-            followers: [] // Users who +1'd this question: { userId, name }
+            status: 'waiting',
+            followers: []
         };
 
         queues.question.push(entry);
-        saveQueues(); // Save state
+        saveQueues();
 
-        console.log(`${name} (${userId}) joined question queue`);
-        broadcastQueues();
+        console.log(`${name} (${userId}) joined question queue in room ${room}`);
+        broadcastQueues(room);
 
-        // Notify all tabs of this user
         emitToUser(userId, 'joined-queue', {
             queueType: 'question',
             position: queues.question.length,
@@ -247,29 +284,33 @@ io.on('connection', (socket) => {
     });
 
     // Leave queue
-    socket.on('leave-queue', ({ queueType, entryId, userId }) => {
+    socket.on('leave-queue', ({ queueType, entryId, userId, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
         const queue = queues[queueType];
+        
         const index = queue.findIndex(item => item.id === entryId);
 
         if (index !== -1) {
             queue.splice(index, 1);
-            saveQueues(); // Save state
-            console.log(`Entry ${entryId} left ${queueType} queue`);
+            saveQueues();
+            console.log(`Entry ${entryId} left ${queueType} queue in room ${room}`);
 
-            // Notify all tabs of this user
             emitToUser(userId, 'left-queue', { queueType, entryId });
 
-            broadcastQueues();
+            broadcastQueues(room);
 
             // Notify people who moved up
             queue.filter(item => item.status === 'waiting').slice(0, 3).forEach((item, idx) => {
-                notifyUpcoming(queueType, idx + 1, item.userId);
+                notifyUpcoming(room, queueType, idx + 1, item.userId);
             });
         }
     });
 
     // Follow a question (+1)
-    socket.on('follow-question', ({ entryId, userId, name }) => {
+    socket.on('follow-question', ({ entryId, userId, name, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
         const entry = queues.question.find(item => item.id === entryId);
 
         if (!entry) {
@@ -277,13 +318,11 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // Check if already following
         if (entry.followers.some(f => f.userId === userId)) {
             socket.emit('error', { message: 'You are already following this question.' });
             return;
         }
 
-        // Can't follow your own question
         if (entry.userId === userId) {
             socket.emit('error', { message: 'You cannot follow your own question.' });
             return;
@@ -292,15 +331,15 @@ io.on('connection', (socket) => {
         entry.followers.push({ userId, name });
         saveQueues();
 
-        console.log(`${name} (${userId}) is following question ${entryId}`);
-        broadcastQueues();
+        broadcastQueues(room);
 
-        // Notify the user they are now following
         emitToUser(userId, 'following-question', { entryId });
     });
 
     // Unfollow a question
-    socket.on('unfollow-question', ({ entryId, userId }) => {
+    socket.on('unfollow-question', ({ entryId, userId, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
         const entry = queues.question.find(item => item.id === entryId);
 
         if (!entry) {
@@ -311,56 +350,42 @@ io.on('connection', (socket) => {
         if (followerIndex !== -1) {
             entry.followers.splice(followerIndex, 1);
             saveQueues();
-
-            console.log(`User ${userId} unfollowed question ${entryId}`);
-            broadcastQueues();
-
+            broadcastQueues(room);
             emitToUser(userId, 'unfollowed-question', { entryId });
         }
     });
 
     // Student: Push back position
-    socket.on('push-back', ({ queueType, entryId, userId }) => {
+    socket.on('push-back', ({ queueType, entryId, userId, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
         const queue = queues[queueType];
         const index = queue.findIndex(item => item.id === entryId);
 
         if (index !== -1) {
-            // Only allow pushing back if waiting
-            if (queue[index].status !== 'waiting') {
-                return;
-            }
+            if (queue[index].status !== 'waiting') return;
 
             const item = queue[index];
-            // Calculate new index (current + 1, but capped at queue length)
             let newIndex = index + 1;
             if (newIndex >= queue.length) {
                 newIndex = queue.length - 1;
             }
 
             if (newIndex !== index) {
-                // Remove from old position
                 queue.splice(index, 1);
-                // Insert at new position
                 queue.splice(newIndex, 0, item);
                 
-                // Update joinedAt to be slightly after the person we are now behind
-                // This ensures time-based sorting (merged view) respects the new order
                 if (newIndex > 0) {
                     const prevItem = queue[newIndex - 1];
-                    // Add 1 second to the previous person's time
                     const prevTime = new Date(prevItem.joinedAt).getTime();
                     item.joinedAt = new Date(prevTime + 1000).toISOString();
-                } else {
-                    // If moved to front (unlikely for push-back), just update to now?
-                    // Or keep as is.
                 }
                 
-                saveQueues(); // Save state
+                saveQueues();
 
-                console.log(`User ${userId} pushed back in ${queueType} queue from ${index} to ${newIndex}`);
-                broadcastQueues();
+                console.log(`User ${userId} pushed back in ${queueType} queue in room ${room}`);
+                broadcastQueues(room);
                 
-                // Notify user
                 emitToUser(userId, 'pushed-back', { 
                     queueType, 
                     position: newIndex + 1 
@@ -369,20 +394,15 @@ io.on('connection', (socket) => {
         }
     });
 
-    // TA: Call next person (Check-in / Notify to come)
-    socket.on('ta-checkin', ({ queueType }) => {
-        // If queueType is 'combined', we need to find the oldest waiting entry across queues?
-        // For now, let's assume the client tells us which specific queue the top person is in, 
-        // OR we handle specific queue types. 
-        // But the user asked to merge queues for TA. The command still likely sends 'marking' or 'question' 
-        // if the TA clicks on a specific item in the merged list. 
-        // However, if there is a general "Call Next" button for the merged queue:
+    // TA: Call next person
+    socket.on('ta-checkin', ({ queueType, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
         
         let targetQueue = queueType;
         let entry = null;
 
         if (queueType === 'combined') {
-            // Find the oldest waiting person across both queues
             const markingTop = queues.marking.find(item => item.status === 'waiting');
             const questionTop = queues.question.find(item => item.status === 'waiting');
 
@@ -392,7 +412,6 @@ io.on('connection', (socket) => {
             }
 
             if (markingTop && questionTop) {
-                // Compare timestamps
                 if (new Date(markingTop.joinedAt) < new Date(questionTop.joinedAt)) {
                     targetQueue = 'marking';
                     entry = markingTop;
@@ -417,16 +436,14 @@ io.on('connection', (socket) => {
         }
 
         entry.status = 'called';
-        saveQueues(); // Save state
-        console.log(`TA called ${entry.name} from ${targetQueue} queue`);
+        saveQueues();
+        console.log(`TA called ${entry.name} from ${targetQueue} queue in room ${room}`);
 
-        // Notify the student
         emitToUser(entry.userId, 'being-called', {
             queueType: targetQueue,
             message: `You are called. Please raise your hand.`
         });
 
-        // Notify all followers of this question
         if (targetQueue === 'question' && entry.followers && entry.followers.length > 0) {
             entry.followers.forEach(follower => {
                 emitToUser(follower.userId, 'being-called', {
@@ -436,16 +453,16 @@ io.on('connection', (socket) => {
                     originalEntryId: entry.id
                 });
             });
-            console.log(`Notified ${entry.followers.length} followers`);
         }
 
-        broadcastQueues();
+        broadcastQueues(room);
     });
 
     // TA: Call specific person
-    socket.on('ta-call-specific', ({ queueType, entryId }) => {
-        // Find entry in specific queue or search both if needed (though UI should pass specific type)
-        // If queueType is combined, we must find the item first
+    socket.on('ta-call-specific', ({ queueType, entryId, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
+        
         let entry;
         let finalQueueType = queueType;
 
@@ -462,15 +479,13 @@ io.on('connection', (socket) => {
 
         if (entry) {
             entry.status = 'called';
-            saveQueues(); // Save state
-            console.log(`TA called specific student ${entry.name}`);
+            saveQueues();
 
             emitToUser(entry.userId, 'being-called', {
                 queueType: finalQueueType,
                 message: `TA will be with you shortly. Please raise your hand.`
             });
 
-            // Notify all followers of this question
             if (finalQueueType === 'question' && entry.followers && entry.followers.length > 0) {
                 entry.followers.forEach(follower => {
                     emitToUser(follower.userId, 'being-called', {
@@ -480,21 +495,21 @@ io.on('connection', (socket) => {
                         originalEntryId: entryId
                     });
                 });
-                console.log(`Notified ${entry.followers.length} followers`);
             }
 
-            broadcastQueues();
+            broadcastQueues(room);
         }
     });
-
-    // TA: Cancel Call (Return to waiting)
-    socket.on('ta-cancel-call', ({ queueType, entryId }) => {
-        // Find entry in specific queue or search both
+    
+    // TA: Cancel Call
+    socket.on('ta-cancel-call', ({ queueType, entryId, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
+        
         let entry;
         let finalQueueType = queueType;
 
         if (queueType === 'combined') {
-             // Find entry by ID in either queue
              entry = queues.marking.find(i => i.id === entryId);
              if (entry) finalQueueType = 'marking';
              else {
@@ -508,30 +523,29 @@ io.on('connection', (socket) => {
         if (entry && entry.status === 'called') {
             entry.status = 'waiting';
             saveQueues();
-            console.log(`TA cancelled call for ${entry.name}`);
+            console.log(`TA cancelled call for ${entry.name} in room ${room}`);
 
-            // Calculate current position
             const queue = queues[finalQueueType];
             const position = queue.filter(item => item.status === 'waiting' || item.status === 'called').indexOf(entry) + 1;
 
-            // Optional: Notify user that call was cancelled (using pushed-back or info message)
             emitToUser(entry.userId, 'pushed-back', {
                 queueType: finalQueueType,
                 position: position
             });
 
-            broadcastQueues();
+            broadcastQueues(room);
         }
     });
 
-    // TA: Start Assisting (Student has arrived)
-    socket.on('ta-start-assisting', ({ queueType, entryId }) => {
-        // Find entry in specific queue or search both
+    // TA: Start Assisting
+    socket.on('ta-start-assisting', ({ queueType, entryId, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
+        
         let entry;
         let finalQueueType = queueType;
 
         if (queueType === 'combined') {
-             // Find entry by ID in either queue
              entry = queues.marking.find(i => i.id === entryId);
              if (entry) finalQueueType = 'marking';
              else {
@@ -544,20 +558,22 @@ io.on('connection', (socket) => {
 
         if (entry) {
             entry.status = 'assisting';
-            saveQueues(); // Save state
-            console.log(`TA started assisting ${entry.name}`);
+            saveQueues();
             
             emitToUser(entry.userId, 'assisting-started', {
                 queueType: finalQueueType,
                 message: `The TA has started assisting you.`
             });
 
-            broadcastQueues();
+            broadcastQueues(room);
         }
     });
 
-    // TA: Complete serving (Next student)
-    socket.on('ta-next', ({ queueType }) => {
+    // TA: Complete serving
+    socket.on('ta-next', ({ queueType, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
+        
         const queuesToProcess = (queueType === 'combined') 
             ? ['marking', 'question'] 
             : [queueType];
@@ -571,13 +587,9 @@ io.on('connection', (socket) => {
             if (assisting.length > 0) {
                 anyChanged = true;
                 
-                // Remove assisting students from this queue
                 queues[qType] = queue.filter(item => item.status !== 'assisting');
                 
                 assisting.forEach(removed => {
-                    console.log(`TA finished assisting ${removed.name} in ${qType} queue`);
-                    
-                    // Only notify the finished student if they were in the marking queue
                     if (qType === 'marking') {
                         emitToUser(removed.userId, 'finished-assisting', {
                             queueType: qType,
@@ -586,11 +598,9 @@ io.on('connection', (socket) => {
                     }
                 });
 
-                // Only notify people moving up if this is the marking queue
                 if (qType === 'marking') {
-                    console.log('Triggering move-up notifications for marking queue');
                     queues[qType].filter(item => item.status === 'waiting').slice(0, 3).forEach((item, idx) => {
-                        notifyUpcoming(qType, idx + 1, item.userId);
+                        notifyUpcoming(room, qType, idx + 1, item.userId);
                     });
                 }
             }
@@ -598,39 +608,44 @@ io.on('connection', (socket) => {
         
         if (anyChanged) {
             saveQueues();
-            broadcastQueues();
+            broadcastQueues(room);
         }
     });
 
     // TA: Remove specific person
-    socket.on('ta-remove', ({ queueType, entryId }) => {
+    socket.on('ta-remove', ({ queueType, entryId, room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
         const queue = queues[queueType];
+        
         const index = queue.findIndex(item => item.id === entryId);
 
         if (index !== -1) {
             const removed = queue.splice(index, 1)[0];
-            saveQueues(); // Save state
-            console.log(`TA removed ${removed.name} from ${queueType} queue`);
+            saveQueues();
 
             emitToUser(removed.userId, 'removed-from-queue', {
                 queueType,
                 message: `You have been removed from the ${queueType} queue.`
             });
 
-            broadcastQueues();
+            broadcastQueues(room);
         }
     });
 
     // TA: Clear all queues
-    socket.on('ta-clear-all', () => {
+    socket.on('ta-clear-all', ({ room }) => {
+        if (!room) return;
+        const queues = getRoom(room);
+        
         queues.marking = [];
         queues.question = [];
         saveQueues();
-        console.log('TA cleared all queues');
-        broadcastQueues();
+        console.log(`TA cleared all queues in room ${room}`);
+        broadcastQueues(room);
         
-        // Notify all users they were removed
-        io.emit('removed-from-queue', {
+        // Notify all users in this room (via socket room)
+        io.to(room).emit('removed-from-queue', {
             message: 'The queue has been reset by the TA.'
         });
     });
@@ -641,13 +656,6 @@ io.on('connection', (socket) => {
 
         if (currentUserId) {
             unregisterUserSocket(currentUserId, socket.id);
-
-            // Only remove from queues if user has no more connected sockets
-            // This allows user to close a tab without losing their position
-            // They will be removed after a timeout if they don't reconnect
-
-            // For now, we keep them in the queue even if disconnected
-            // The TA can manually remove them if needed
         }
     });
 });
