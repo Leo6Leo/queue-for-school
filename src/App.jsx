@@ -48,7 +48,7 @@ function TimeAgo({ isoString }) {
   useEffect(() => {
     // Initial set
     setTimeLabel(formatTimeAgo(isoString));
-    
+
     // Update every minute
     const interval = setInterval(() => {
       setTimeLabel(formatTimeAgo(isoString));
@@ -74,6 +74,20 @@ function HomeLink() {
         <polyline points="9 22 9 12 15 12 15 22"></polyline>
       </svg>
     </a>
+  );
+}
+
+// Room Badge Component
+function RoomBadge({ name }) {
+  if (!name) return null;
+  return (
+    <div className="room-badge" title="Current TA Room">
+      <svg xmlns="http://www.w3.org/2000/svg" className="room-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+        <circle cx="12" cy="10" r="3"></circle>
+      </svg>
+      <span className="room-name">Room: {name}</span>
+    </div>
   );
 }
 
@@ -251,7 +265,7 @@ function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpe
   const hasFollowers = item.followers && item.followers.length > 0;
   // Allow expand for TA (long description + followers) or for students viewing question queue items with long description
   const hasExpandableContent = (isTA && (descriptionIsLong || hasFollowers)) ||
-                               (!isTA && isQuestionType && descriptionIsLong);
+    (!isTA && isQuestionType && descriptionIsLong);
 
   const handleCardClick = () => {
     if (hasExpandableContent) {
@@ -274,9 +288,9 @@ function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpe
           {isAssisting && <span className="status-badge assisting">Currently Assisting</span>}
           {isCalled && <span className="status-badge called">Called</span>}
           {isTA && queueType === 'combined' && (
-             <span className={`queue-badge ${item.type || 'marking'}`}>
-               {(item.type === 'marking' ? 'M' : 'Q')}
-             </span>
+            <span className={`queue-badge ${item.type || 'marking'}`}>
+              {(item.type === 'marking' ? 'M' : 'Q')}
+            </span>
           )}
           {followerCount > 0 && (
             <span className="follower-badge" title={`${followerCount} student${followerCount > 1 ? 's' : ''} with same question`}>
@@ -321,26 +335,26 @@ function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpe
       )}
       {isTA && item.status === 'waiting' && (
         <button
-           className="btn btn-sm btn-secondary"
-           style={{ margin: '0 8px', padding: '4px 10px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer', position: 'relative', zIndex: 20 }}
-           onClick={(e) => {
-             e.stopPropagation();
-             onCallSpecific(item.type || queueType, item.id);
-           }}
-           title="Call this student"
+          className="btn btn-sm btn-secondary"
+          style={{ margin: '0 8px', padding: '4px 10px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer', position: 'relative', zIndex: 20 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCallSpecific(item.type || queueType, item.id);
+          }}
+          title="Call this student"
         >
           Call
         </button>
       )}
       {isTA && item.status === 'called' && (
         <button
-           className="btn btn-sm btn-secondary"
-           style={{ margin: '0 8px', padding: '4px 10px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer', position: 'relative', zIndex: 20, color: 'var(--warning)', borderColor: 'var(--warning)' }}
-           onClick={(e) => {
-             e.stopPropagation();
-             onCancelCall(item.type || queueType, item.id);
-           }}
-           title="Cancel call (return to waiting)"
+          className="btn btn-sm btn-secondary"
+          style={{ margin: '0 8px', padding: '4px 10px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer', position: 'relative', zIndex: 20, color: 'var(--warning)', borderColor: 'var(--warning)' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCancelCall(item.type || queueType, item.id);
+          }}
+          title="Cancel call (return to waiting)"
         >
           Cancel
         </button>
@@ -349,8 +363,8 @@ function QueueItem({ item, position, isYou, isTA, queueType, onRemove, onCallSpe
         <button
           className="btn btn-icon btn-danger"
           onClick={(e) => {
-             e.stopPropagation();
-             onRemove(item.id);
+            e.stopPropagation();
+            onRemove(item.id);
           }}
           title="Remove from queue"
         >
@@ -399,10 +413,10 @@ function QueueCard({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    
+
     // Determine effective type for validation and join
     const effectiveType = type === 'combined' ? joinType : type;
-    
+
     if (effectiveType === 'marking' && (!studentId.trim() || studentId.length !== 4)) return;
 
     setIsJoining(true);
@@ -428,20 +442,20 @@ function QueueCard({
   let myPositions = [];
   if (type === 'combined' && !isTA && allMyEntries) {
     if (allMyEntries.marking) {
-        // Find in the combined queue
-        const pos = itemPosition(queue, allMyEntries.marking.entryId);
-        if (pos !== null) myPositions.push({ type: 'marking', position: pos, status: allMyEntries.marking.status, entryId: allMyEntries.marking.entryId });
-        else if (allMyEntries.marking.status === 'assisting') myPositions.push({ type: 'marking', status: 'assisting' });
+      // Find in the combined queue
+      const pos = itemPosition(queue, allMyEntries.marking.entryId);
+      if (pos !== null) myPositions.push({ type: 'marking', position: pos, status: allMyEntries.marking.status, entryId: allMyEntries.marking.entryId });
+      else if (allMyEntries.marking.status === 'assisting') myPositions.push({ type: 'marking', status: 'assisting' });
     }
     if (allMyEntries.question) {
-        const pos = itemPosition(queue, allMyEntries.question.entryId);
-        if (pos !== null) myPositions.push({ type: 'question', position: pos, status: allMyEntries.question.status, entryId: allMyEntries.question.entryId });
-        else if (allMyEntries.question.status === 'assisting') myPositions.push({ type: 'question', status: 'assisting' });
+      const pos = itemPosition(queue, allMyEntries.question.entryId);
+      if (pos !== null) myPositions.push({ type: 'question', position: pos, status: allMyEntries.question.status, entryId: allMyEntries.question.entryId });
+      else if (allMyEntries.question.status === 'assisting') myPositions.push({ type: 'question', status: 'assisting' });
     }
   } else if (myEntry) {
-     const pos = itemPosition(queue, myEntry.entryId);
-     if (pos !== null) myPositions.push({ type, position: pos, status: myEntry.status, entryId: myEntry.entryId });
-     else if (myEntry.status === 'assisting') myPositions.push({ type, status: 'assisting' });
+    const pos = itemPosition(queue, myEntry.entryId);
+    if (pos !== null) myPositions.push({ type, position: pos, status: myEntry.status, entryId: myEntry.entryId });
+    else if (myEntry.status === 'assisting') myPositions.push({ type, status: 'assisting' });
   }
 
   const isAssistingAny = queue.some(item => item.status === 'assisting');
@@ -465,36 +479,36 @@ function QueueCard({
           {myPositions.map((pos, idx) => (
             <div key={idx} style={{ marginBottom: idx < myPositions.length - 1 ? '16px' : '0', borderBottom: idx < myPositions.length - 1 ? '1px solid rgba(255,255,255,0.3)' : 'none', paddingBottom: idx < myPositions.length - 1 ? '16px' : '0' }}>
               <h3>
-                {pos.status === 'assisting' ? `You're Being Assisted (${pos.type})!` : 
-                 pos.status === 'called' ? `Raise your hand (${pos.type})!` : `Your Position (${pos.type})`}
+                {pos.status === 'assisting' ? `You're Being Assisted (${pos.type})!` :
+                  pos.status === 'called' ? `Raise your hand (${pos.type})!` : `Your Position (${pos.type})`}
               </h3>
-              
+
               {pos.status === 'assisting' ? (
                 <p className="position-number">✓</p>
               ) : pos.status === 'called' ? (
-                 <p className="position-number">!</p>
+                <p className="position-number">!</p>
               ) : (
                 <>
                   <p className="position-number">#{pos.position}</p>
                   <p>{pos.position === 1 ? "You're next!" : `${pos.position - 1} ahead of you`}</p>
                 </>
               )}
-              
+
               <div className="leave-btn-container" style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
                 {pos.status === 'waiting' && pos.position <= 3 && waitingCount > 1 && (
-                    <button 
-                      className="btn btn-sm" 
-                      style={{ background: 'rgba(255,255,255,0.9)', color: '#333' }}
-                      onClick={onPushBack(pos.type, pos.entryId)}
-                    >
-                      Push Back
-                    </button>
+                  <button
+                    className="btn btn-sm"
+                    style={{ background: 'rgba(255,255,255,0.9)', color: '#333' }}
+                    onClick={onPushBack(pos.type, pos.entryId)}
+                  >
+                    Push Back
+                  </button>
                 )}
                 {pos.status !== 'assisting' && (
-                  <button 
-                      className="btn btn-sm" 
-                      style={{ color: 'white', borderColor: 'white' }}
-                      onClick={onLeave(pos.type, pos.entryId)}
+                  <button
+                    className="btn btn-sm"
+                    style={{ color: 'white', borderColor: 'white' }}
+                    onClick={onLeave(pos.type, pos.entryId)}
                   >
                     Leave Queue
                   </button>
@@ -541,30 +555,30 @@ function QueueCard({
               Finish Assisting
             </button>
           ) : isTopCalled ? (
-             <>
-               <button 
-                 className={`btn btn-success`}
-                 style={{ background: '#22c55e', color: 'white', flex: 2 }} 
-                 onClick={() => onStartAssisting(topItem.id)}
-               >
-                 Start Assisting {topItem.name}
-               </button>
-               <button 
-                 className={`btn btn-secondary`}
-                 style={{ color: 'var(--warning)', borderColor: 'var(--warning)', flex: 1 }}
-                 onClick={() => onCancelCall(topItem.type || type, topItem.id)}
-               >
-                 Cancel Call
-               </button>
-             </>
+            <>
+              <button
+                className={`btn btn-success`}
+                style={{ background: '#22c55e', color: 'white', flex: 2 }}
+                onClick={() => onStartAssisting(topItem.id)}
+              >
+                Start Assisting {topItem.name}
+              </button>
+              <button
+                className={`btn btn-secondary`}
+                style={{ color: 'var(--warning)', borderColor: 'var(--warning)', flex: 1 }}
+                onClick={() => onCancelCall(topItem.type || type, topItem.id)}
+              >
+                Cancel Call
+              </button>
+            </>
           ) : type === 'combined' ? (
-             <>
-                <button className="btn btn-marking" onClick={onCallMarking}>Next Marking</button>
-                <button className="btn btn-question" onClick={onCallQuestion}>Next Question</button>
-             </>
+            <>
+              <button className="btn btn-marking" onClick={onCallMarking}>Next Marking</button>
+              <button className="btn btn-question" onClick={onCallQuestion}>Next Question</button>
+            </>
           ) : (
-            <button 
-              className={`btn btn-${type === 'combined' ? 'marking' : type}`} 
+            <button
+              className={`btn btn-${type === 'combined' ? 'marking' : type}`}
               onClick={onCall}
               disabled={waitingCount === 0}
             >
@@ -577,27 +591,27 @@ function QueueCard({
       {/* Join form (only for students not in queue) */}
       {!isTA && (type !== 'combined' ? !myEntry : (!allMyEntries?.marking || !allMyEntries?.question)) && (
         <div className="join-container">
-           {type === 'combined' && (
-             <div className="join-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-                <button 
-                  className={`btn btn-sm ${joinType === 'marking' ? 'btn-marking' : 'btn-secondary'}`}
-                  onClick={() => setJoinType('marking')}
-                  disabled={allMyEntries?.marking}
-                >
-                  Join Marking
-                </button>
-                <button 
-                  className={`btn btn-sm ${joinType === 'question' ? 'btn-question' : 'btn-secondary'}`}
-                  onClick={() => setJoinType('question')}
-                  disabled={allMyEntries?.question}
-                >
-                  Join Question
-                </button>
-             </div>
-           )}
-           
-           {/* Only show form if the selected type is not already joined */}
-           {((type === 'combined' && !allMyEntries?.[joinType]) || (type !== 'combined' && !myEntry)) && (
+          {type === 'combined' && (
+            <div className="join-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+              <button
+                className={`btn btn-sm ${joinType === 'marking' ? 'btn-marking' : 'btn-secondary'}`}
+                onClick={() => setJoinType('marking')}
+                disabled={allMyEntries?.marking}
+              >
+                Join Marking
+              </button>
+              <button
+                className={`btn btn-sm ${joinType === 'question' ? 'btn-question' : 'btn-secondary'}`}
+                onClick={() => setJoinType('question')}
+                disabled={allMyEntries?.question}
+              >
+                Join Question
+              </button>
+            </div>
+          )}
+
+          {/* Only show form if the selected type is not already joined */}
+          {((type === 'combined' && !allMyEntries?.[joinType]) || (type !== 'combined' && !myEntry)) && (
             <form className="join-form" onSubmit={handleSubmit} style={{ borderTop: 'none', marginTop: 0, paddingTop: 0 }}>
               <div className="form-group">
                 <label className="form-label">Your Name</label>
@@ -662,7 +676,184 @@ function QueueCard({
                 {isJoining ? <span className="spinner"></span> : `Join Queue`}
               </button>
             </form>
-           )}
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// All Rooms View Component
+function AllRoomsView({ theme, setTheme, setRoom }) {
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchRooms = () => {
+    setLoading(true);
+    setError(null);
+    const API_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+
+    fetch(`${API_URL}/api/rooms`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        setRooms(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setError(err.message);
+        setLoading(false);
+      })
+      .finally(() => {
+        setTimeout(() => setIsRefreshing(false), 400);
+      });
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchRooms();
+  };
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  // Listen for real-time room updates via socket
+  useEffect(() => {
+    const handleRoomsUpdate = (roomList) => {
+      setRooms(roomList);
+      // If we were loading initially and now have data, stop loading
+      if (loading && roomList) {
+        setLoading(false);
+      }
+    };
+
+    socket.on('rooms-list-update', handleRoomsUpdate);
+
+    return () => {
+      socket.off('rooms-list-update', handleRoomsUpdate);
+    };
+  }, [loading]);
+
+  return (
+    <div className="home-page" style={{ justifyContent: 'flex-start', paddingTop: '40px' }}>
+      <header className="page-header" style={{ width: '100%', maxWidth: '800px', marginBottom: '40px' }}>
+        <div className="page-header-left">
+          <a href="#" className="back-link">← Home</a>
+        </div>
+        <div className="header-controls">
+          <ThemeToggle theme={theme} setTheme={setTheme} />
+        </div>
+      </header>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <h1 className="home-title" style={{ fontSize: '2rem', marginBottom: 0 }}>Active Rooms</h1>
+        <button
+          onClick={handleRefresh}
+          title="Refresh Rooms"
+          disabled={isRefreshing}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: isRefreshing ? 'default' : 'pointer',
+            padding: '6px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.2s ease',
+            opacity: isRefreshing ? 0.6 : 1
+          }}
+          onMouseEnter={(e) => !isRefreshing && (e.currentTarget.style.background = 'var(--bg-secondary)')}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--text-secondary)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              animation: isRefreshing ? 'spin 0.6s linear infinite' : 'none',
+              transition: 'transform 0.2s ease'
+            }}
+          >
+            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+            <path d="M21 3v5h-5" />
+          </svg>
+        </button>
+      </div>
+      <p className="home-subtitle">Live status of all TA sessions</p>
+
+      {loading ? (
+        <div className="spinner" style={{ borderColor: 'var(--text-primary)', borderTopColor: 'transparent', margin: '40px' }}></div>
+      ) : error ? (
+        <div className="queue-empty">
+          <p style={{ color: 'var(--danger)' }}>Error loading rooms: {error}</p>
+          <button className="btn btn-secondary" onClick={fetchRooms} style={{ marginTop: '16px' }}>Try Again</button>
+        </div>
+      ) : rooms.length === 0 ? (
+        <div className="queue-empty">
+          <p>No active rooms found.</p>
+          <p style={{ fontSize: '0.8rem', marginTop: '8px' }}>Join a room (e.g. /?ta=SF101) to create one.</p>
+        </div>
+      ) : (
+        <div className="rooms-grid" style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gap: '20px',
+          width: '100%',
+          maxWidth: '1000px',
+          padding: '0 20px',
+          marginBottom: '60px'
+        }}>
+          {rooms.map(room => (
+            <div
+              key={room.name}
+              className="queue-card"
+              style={{
+                textDecoration: 'none',
+                color: 'inherit',
+                display: 'block',
+                cursor: 'pointer',
+                transition: 'transform 0.2s'
+              }}
+              onClick={() => {
+                // SPA navigation - update URL and room state
+                const newUrl = `${window.location.pathname}?ta=${encodeURIComponent(room.name)}#student`;
+                window.history.pushState({}, '', newUrl);
+                if (setRoom) {
+                  setRoom(room.name);
+                }
+                // Trigger hash change for page routing
+                window.dispatchEvent(new HashChangeEvent('hashchange'));
+              }}
+            >
+              <div className="queue-header" style={{ borderBottom: 'none', paddingBottom: '0', background: 'transparent' }}>
+                <div className="queue-title" style={{ width: '100%', justifyContent: 'center' }}>
+                  <RoomBadge name={room.name} />
+                </div>
+              </div>
+              <div style={{ padding: '0 24px 24px 24px', display: 'flex', gap: '16px', marginTop: '8px' }}>
+                <div style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '12px' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--marking-primary)' }}>{room.markingCount}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Marking</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '12px' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--question-primary)' }}>{room.questionCount}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Questions</div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -670,11 +861,17 @@ function QueueCard({
 }
 
 // Home Page Component
-function HomePage({ theme, setTheme }) {
+function HomePage({ theme, setTheme, room }) {
   return (
     <div className="home-page">
       <h1 className="home-title">ECE297 Queue</h1>
-      <p className="home-subtitle">TA Practical Session Queue Management</p>
+      <p className="home-subtitle" style={{ marginBottom: '12px' }}>TA Practical Session Queue Management</p>
+
+      {room && (
+        <div style={{ marginBottom: '48px' }}>
+          <RoomBadge name={room} />
+        </div>
+      )}
 
       <div className="home-buttons">
         <a href="#student" className="home-btn student">
@@ -682,6 +879,9 @@ function HomePage({ theme, setTheme }) {
         </a>
         <a href="#ta" className="home-btn ta">
           TA Login
+        </a>
+        <a href="#all" className="home-btn secondary" style={{ background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', justifyContent: 'center', marginTop: '12px' }}>
+          View All Rooms
         </a>
       </div>
 
@@ -694,68 +894,189 @@ function HomePage({ theme, setTheme }) {
 }
 
 // TA Login Page Component
-function TALoginPage({ onLogin, theme, setTheme }) {
+function TALoginPage({ onLogin, theme, setTheme, room, setRoom }) {
   const [password, setPassword] = useState('');
+  const [masterPassword, setMasterPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [roomStatus, setRoomStatus] = useState({ checked: false, hasPassword: false });
+
+  useEffect(() => {
+    if (!room) {
+      setRoomStatus({ checked: true, hasPassword: false });
+      return;
+    }
+    const API_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+    fetch(`${API_URL}/api/room-status?room=${encodeURIComponent(room)}`)
+      .then(res => res.json())
+      .then(data => {
+        setRoomStatus({ checked: true, hasPassword: data.hasPassword });
+      })
+      .catch(err => {
+        console.error(err);
+        setRoomStatus({ checked: true, hasPassword: false }); // Fallback
+      });
+  }, [room]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    const API_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/ta-auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ password }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        onLogin();
+      if (roomStatus.hasPassword) {
+        const response = await fetch(`${API_URL}/api/room-auth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room, password }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          onLogin();
+        } else {
+          setError(data.message || 'Incorrect password');
+        }
       } else {
-        setError('Incorrect password');
-        setPassword('');
+        const response = await fetch(`${API_URL}/api/claim-room`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room, masterPassword, newPassword }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          onLogin();
+        } else {
+          setError(data.message || 'Incorrect Master Password');
+        }
       }
-    } catch {
-      setError('Authentication failed. Please try again.');
-      setPassword('');
+    } catch (err) {
+      setError('Connection error');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const [manualRoomInput, setManualRoomInput] = useState('');
+
+  // Handle manual room entry (SPA navigation without hard refresh)
+  const handleRoomSubmit = (e) => {
+    e.preventDefault();
+    if (manualRoomInput.trim()) {
+      const newRoom = manualRoomInput.trim();
+      // Update URL without refresh
+      const newUrl = `${window.location.pathname}?ta=${encodeURIComponent(newRoom)}#ta`;
+      window.history.pushState({}, '', newUrl);
+      // Update room state
+      if (setRoom) {
+        setRoom(newRoom);
+      }
+    }
+  };
+
+  if (!room) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <h1>TA Dashboard</h1>
+          <p>Enter a room name to create or manage it.</p>
+
+          <form onSubmit={handleRoomSubmit}>
+            <div className="form-group">
+              <label className="form-label">Room Name</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. SF101"
+                value={manualRoomInput}
+                onChange={(e) => setManualRoomInput(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+              Continue
+            </button>
+          </form>
+
+          <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border-color)' }}>
+            <p style={{ marginBottom: '16px', fontSize: '0.9rem' }}>Or view existing rooms:</p>
+            <a href="/#all" className="btn btn-secondary" style={{ textDecoration: 'none', display: 'block', textAlign: 'center' }}>
+              View Active Rooms
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!roomStatus.checked) {
+    return (
+      <div className="login-page">
+        <div className="login-card" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '60px' }}>
+          <span className="spinner"></span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1>TA Login</h1>
-        <p>Enter the TA password to access the dashboard</p>
+        <h1>{roomStatus.hasPassword ? 'TA Login' : 'Setup Room'}</h1>
+        <p>{roomStatus.hasPassword ? 'Enter the room password' : 'Create a password for this room'}</p>
 
         {error && <div className="login-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <input
-              type="password"
-              className="form-input"
-              placeholder="Enter password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setError('');
-              }}
-              required
-              autoFocus
-            />
-          </div>
+          {!roomStatus.hasPassword && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Master Password</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="Enter Master Password"
+                  value={masterPassword}
+                  onChange={(e) => setMasterPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">New Room Password</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="Set Room Password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </>
+          )}
+
+          {roomStatus.hasPassword && (
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="Enter room password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError('');
+                }}
+                required
+                autoFocus
+              />
+            </div>
+          )}
 
           <button type="submit" className="btn btn-marking" disabled={isLoading}>
-            {isLoading ? 'Logging in...' : 'Login'}
+            {isLoading ? 'Processing...' : (roomStatus.hasPassword ? 'Login' : 'Create & Login')}
           </button>
         </form>
 
@@ -787,7 +1108,8 @@ function StudentView({
   leaveQueue,
   pushBack,
   followQuestion,
-  unfollowQuestion
+  unfollowQuestion,
+  room
 }) {
   return (
     <div className="app">
@@ -795,6 +1117,7 @@ function StudentView({
         <div className="page-header">
           <div className="page-header-left">
             <HomeLink />
+            <RoomBadge name={room} />
           </div>
           <div className="header-controls">
             <ConnectionStatus isConnected={isConnected} />
@@ -868,7 +1191,9 @@ function TAView({
   taStartAssisting,
   taNext,
   taRemove,
-  taClearAll
+  taClearAll,
+  taDeleteRoom,
+  room
 }) {
   // Merge and sort queues
   const combinedQueue = [
@@ -882,10 +1207,10 @@ function TAView({
       if (status === 'called') return 2;
       return 1;
     };
-    
+
     const scoreA = statusScore(a.status);
     const scoreB = statusScore(b.status);
-    
+
     if (scoreA !== scoreB) return scoreB - scoreA; // Higher score first
     return new Date(a.joinedAt) - new Date(b.joinedAt); // Older time first
   });
@@ -897,6 +1222,7 @@ function TAView({
           <div className="page-header-left">
             <a href="#" className="back-link">← Home</a>
             <span className="ta-badge">TA Mode</span>
+            <RoomBadge name={room} />
           </div>
           <div className="header-controls">
             <ConnectionStatus isConnected={isConnected} />
@@ -935,11 +1261,16 @@ function TAView({
         <div style={{ marginTop: '40px', padding: '20px', border: '1px solid var(--danger)', borderRadius: 'var(--radius-md)', opacity: 0.8 }}>
           <h3 style={{ color: 'var(--danger)', marginBottom: '8px' }}>Danger Zone</h3>
           <p style={{ fontSize: '0.875rem', marginBottom: '16px', color: 'var(--text-secondary)' }}>
-            Resetting the queue will remove everyone from all queues. This is usually done at the end of a session.
+            Manage the lifecycle of this room. Clearing queues removes students. Deleting the room removes it permanently.
           </p>
-          <button className="btn btn-secondary" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={taClearAll}>
-            Clear All Queues
-          </button>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary" style={{ color: 'var(--danger)', borderColor: 'var(--danger)', flex: 1 }} onClick={taClearAll}>
+              Clear All Queues
+            </button>
+            <button className="btn btn-secondary" style={{ background: 'var(--danger)', color: 'white', borderColor: 'var(--danger)', flex: 1 }} onClick={taDeleteRoom}>
+              Delete Room
+            </button>
+          </div>
         </div>
       </main>
     </div>
@@ -958,15 +1289,25 @@ function NoRoomPage({ theme, setTheme }) {
     <div className="home-page">
       <h1 className="home-title">ECE297 Queue</h1>
       <p className="home-subtitle">Queue Management System</p>
-      
+
       <div className="login-card" style={{ maxWidth: '500px' }}>
         <h2 style={{ color: 'var(--danger)', marginBottom: '16px' }}>Invalid Link</h2>
         <p style={{ marginBottom: '24px' }}>
-          Please use the link provided by your TA (e.g., ?ta=name).
+          Please use the link provided by your TA.
         </p>
-        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+        <p style={{ marginBottom: '24px' }}>
+          https://XXX/?<strong>ta=the_room_name</strong>
+        </p>
+        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '24px' }}>
           No specific TA room was found in the URL.
         </p>
+        <a
+          href="#all"
+          className="btn btn-primary"
+          style={{ textDecoration: 'none', display: 'block', textAlign: 'center', width: '100%' }}
+        >
+          View All Active Rooms
+        </a>
       </div>
 
       <div className="home-footer">
@@ -994,9 +1335,9 @@ function App() {
   });
   const [turnAlert, setTurnAlert] = useState(null);
   const [successOverlay, setSuccessOverlay] = useState(null);
-  
-  // Get room from URL
-  const [room] = useState(getRoomFromUrl);
+
+  // Get room from URL (allow updates for SPA navigation)
+  const [room, setRoom] = useState(getRoomFromUrl);
 
   // Apply theme
   useEffect(() => {
@@ -1012,6 +1353,8 @@ function App() {
         setPage('student');
       } else if (hash === 'ta') {
         setPage(isTAAuthenticated ? 'ta' : 'ta-login');
+      } else if (hash === 'all') {
+        setPage('all');
       } else {
         setPage('home');
       }
@@ -1080,7 +1423,7 @@ function App() {
 
     const onQueuesUpdate = (data) => {
       setQueues(data);
-      
+
       // Update status in myEntries if user is in queue
       setMyEntries(prev => {
         const next = { ...prev };
@@ -1088,8 +1431,8 @@ function App() {
           if (next[type]) {
             const entry = data[type].find(item => item.id === next[type].entryId);
             if (entry) {
-              next[type] = { 
-                ...next[type], 
+              next[type] = {
+                ...next[type],
                 status: entry.status,
                 position: entry.position
               };
@@ -1109,8 +1452,8 @@ function App() {
     const onJoinedQueue = (data) => {
       setMyEntries(prev => ({
         ...prev,
-        [data.queueType]: { 
-          entryId: data.entryId, 
+        [data.queueType]: {
+          entryId: data.entryId,
           position: data.position,
           status: 'waiting'
         }
@@ -1159,7 +1502,7 @@ function App() {
         requireInteraction: true,
       });
     };
-    
+
     const onPushedBack = (data) => {
       addToast('Pushed Back', `You are now #${data.position} in the queue.`, 'info');
       setTurnAlert(null); // Dismiss any turn alerts
@@ -1184,6 +1527,14 @@ function App() {
       setTurnAlert(null);
     };
 
+    const onRoomDeleted = (data) => {
+      addToast('Room Closed', data.message, 'warning');
+      setTurnAlert(null);
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 3000);
+    };
+
     const onError = (data) => {
       addToast('Error', data.message, 'error');
     };
@@ -1200,6 +1551,7 @@ function App() {
     socket.on('finished-assisting', onFinishedAssisting);
     socket.on('assisting-started', onAssistingStarted);
     socket.on('removed-from-queue', onRemovedFromQueue);
+    socket.on('room-deleted', onRoomDeleted);
     socket.on('error', onError);
 
     if (socket.connected) {
@@ -1220,12 +1572,13 @@ function App() {
       socket.off('finished-assisting', onFinishedAssisting);
       socket.off('assisting-started', onAssistingStarted);
       socket.off('removed-from-queue', onRemovedFromQueue);
+      socket.off('room-deleted', onRoomDeleted);
       socket.off('error', onError);
     };
   }, [addToast, room]);
 
-  // If no room is provided, show error page
-  if (!room) {
+  // If no room is provided and not viewing the "all" page, show error page
+  if (!room && page !== 'all') {
     return <NoRoomPage theme={theme} setTheme={setTheme} />;
   }
 
@@ -1234,7 +1587,7 @@ function App() {
     const granted = await requestNotificationPermission();
     const status = getNotificationPermissionStatus();
     setNotificationStatus(status);
-    
+
     if (granted) {
       addToast('Notifications Enabled', 'You will receive alerts when your turn approaches.', 'success');
       playNotificationSound(); // Test sound
@@ -1265,7 +1618,7 @@ function App() {
       room
     });
   };
-  
+
   const pushBack = (queueType, entryId) => () => {
     socket.emit('push-back', {
       queueType,
@@ -1282,7 +1635,7 @@ function App() {
 
     // Try to get user's name from: 1) input box, 2) existing queue entry, 3) localStorage
     const userEntry = queues.marking.find(e => e.userId === userId) ||
-                      queues.question.find(e => e.userId === userId);
+      queues.question.find(e => e.userId === userId);
     let name = inputName?.trim() || userEntry?.name || localStorage.getItem('queue_user_name');
 
     if (!name) {
@@ -1318,22 +1671,22 @@ function App() {
     setSuccessOverlay(`Called next student`);
     playSuccessSound();
   };
-  
+
   const taCallSpecific = (queueType, entryId) => {
     // Debug toast to confirm action
     addToast('Calling Student', `Sending call request...`, 'info');
     socket.emit('ta-call-specific', { queueType, entryId, room });
     playSuccessSound();
   };
-  
+
   const taCancelCall = (queueType, entryId) => {
     socket.emit('ta-cancel-call', { queueType, entryId, room });
     addToast('Call Cancelled', 'Student returned to waiting status.', 'info');
   };
-  
+
   const taStartAssisting = (queueType) => (entryId) => {
-     socket.emit('ta-start-assisting', { queueType, entryId, room });
-     // No overlay needed, UI updates immediately
+    socket.emit('ta-start-assisting', { queueType, entryId, room });
+    // No overlay needed, UI updates immediately
   };
 
   const taNext = (queueType) => () => {
@@ -1349,25 +1702,37 @@ function App() {
     }
   };
 
+  const taDeleteRoom = () => {
+    if (window.confirm('Are you sure you want to PERMANENTLY DELETE this room? This cannot be undone and will disconnect everyone.')) {
+      socket.emit('ta-delete-room', { room });
+      // Clean up local
+      handleTALogout();
+      setSuccessOverlay('Room Deleted');
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+    }
+  };
+
   const taRemove = (queueType) => (entryId) => {
     // If combined, we need to know the real type, which is inside entry usually?
     // But socket.emit expects queueType. 
     // In TAView combined queue, items have 'type' property.
     // QueueCard passes onRemove(item.id). 
     // We need to fix this in QueueCard or here.
-    
+
     // Quick fix: if queueType is combined, find the item to get its real type
     if (queueType === 'combined') {
-       const item = [...queues.marking, ...queues.question].find(i => i.id === entryId);
-       if (item) {
-          // Determine type if item doesn't have it (it should in TAView)
-          // But here we are looking at raw queues state which doesn't have 'type' prop injected
-          // We can infer type by checking which queue it is in
-          const type = queues.marking.find(i => i.id === entryId) ? 'marking' : 'question';
-          socket.emit('ta-remove', { queueType: type, entryId, room });
-       }
+      const item = [...queues.marking, ...queues.question].find(i => i.id === entryId);
+      if (item) {
+        // Determine type if item doesn't have it (it should in TAView)
+        // But here we are looking at raw queues state which doesn't have 'type' prop injected
+        // We can infer type by checking which queue it is in
+        const type = queues.marking.find(i => i.id === entryId) ? 'marking' : 'question';
+        socket.emit('ta-remove', { queueType: type, entryId, room });
+      }
     } else {
-       socket.emit('ta-remove', { queueType, entryId, room });
+      socket.emit('ta-remove', { queueType, entryId, room });
     }
   };
 
@@ -1407,6 +1772,7 @@ function App() {
           pushBack={pushBack}
           followQuestion={followQuestion}
           unfollowQuestion={unfollowQuestion}
+          room={room}
         />
       );
       break;
@@ -1416,6 +1782,8 @@ function App() {
           onLogin={handleTALogin}
           theme={theme}
           setTheme={setTheme}
+          room={room}
+          setRoom={setRoom}
         />
       );
       break;
@@ -1434,11 +1802,16 @@ function App() {
           taNext={taNext}
           taRemove={taRemove}
           taClearAll={taClearAll}
+          taDeleteRoom={taDeleteRoom}
+          room={room}
         />
       );
       break;
+    case 'all':
+      content = <AllRoomsView theme={theme} setTheme={setTheme} setRoom={setRoom} />;
+      break;
     default:
-      content = <HomePage theme={theme} setTheme={setTheme} />;
+      content = <HomePage theme={theme} setTheme={setTheme} room={room} />;
   }
 
   return (
