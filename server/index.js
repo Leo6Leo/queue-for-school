@@ -111,6 +111,57 @@ const emitToUser = (userId, event, data) => {
     }
 };
 
+// Check if user is in any queue in any room (cross-room check)
+const findUserInAnyRoom = (userId) => {
+    for (const [roomName, roomData] of rooms.entries()) {
+        if (!roomData || !Array.isArray(roomData.marking) || !Array.isArray(roomData.question)) continue;
+        
+        const inMarking = roomData.marking.find(item => item.userId === userId);
+        if (inMarking) {
+            return { room: roomName, queueType: 'marking', entry: inMarking };
+        }
+        
+        const inQuestion = roomData.question.find(item => item.userId === userId);
+        if (inQuestion) {
+            return { room: roomName, queueType: 'question', entry: inQuestion };
+        }
+    }
+    return null;
+};
+
+// Remove user from all queues in a specific room
+const removeUserFromRoom = (userId, roomName) => {
+    if (!rooms.has(roomName)) return false;
+    
+    const queues = rooms.get(roomName);
+    let removed = false;
+    
+    const markingIndex = queues.marking.findIndex(item => item.userId === userId);
+    if (markingIndex !== -1) {
+        queues.marking.splice(markingIndex, 1);
+        removed = true;
+    }
+    
+    const questionIndex = queues.question.findIndex(item => item.userId === userId);
+    if (questionIndex !== -1) {
+        queues.question.splice(questionIndex, 1);
+        removed = true;
+    }
+    
+    // Also remove from followers
+    queues.question.forEach(entry => {
+        if (entry.followers) {
+            const followerIndex = entry.followers.findIndex(f => f.userId === userId);
+            if (followerIndex !== -1) {
+                entry.followers.splice(followerIndex, 1);
+                removed = true;
+            }
+        }
+    });
+    
+    return removed;
+};
+
 // Broadcast room list to all connected clients (for "All Rooms" view)
 const broadcastRoomsList = () => {
     const roomList = Array.from(rooms.entries())
@@ -213,9 +264,21 @@ io.on('connection', (socket) => {
         if (!room) return;
         const queues = getRoom(room);
 
+        // Check if already in this room's marking queue
         const existingIndex = queues.marking.findIndex(item => item.userId === userId);
         if (existingIndex !== -1) {
             socket.emit('error', { message: 'You are already in the marking queue.' });
+            return;
+        }
+
+        // Check if user is in any other room's queue
+        const otherRoomEntry = findUserInAnyRoom(userId);
+        if (otherRoomEntry && otherRoomEntry.room !== room) {
+            socket.emit('error', { 
+                message: `You are already in a queue in room "${otherRoomEntry.room}". Please leave that queue first before joining another room.`,
+                existingRoom: otherRoomEntry.room,
+                existingQueueType: otherRoomEntry.queueType
+            });
             return;
         }
 
@@ -244,9 +307,21 @@ io.on('connection', (socket) => {
         if (!room) return;
         const queues = getRoom(room);
 
+        // Check if already in this room's question queue
         const existingIndex = queues.question.findIndex(item => item.userId === userId);
         if (existingIndex !== -1) {
             socket.emit('error', { message: 'You are already in the question queue.' });
+            return;
+        }
+
+        // Check if user is in any other room's queue
+        const otherRoomEntry = findUserInAnyRoom(userId);
+        if (otherRoomEntry && otherRoomEntry.room !== room) {
+            socket.emit('error', { 
+                message: `You are already in a queue in room "${otherRoomEntry.room}". Please leave that queue first before joining another room.`,
+                existingRoom: otherRoomEntry.room,
+                existingQueueType: otherRoomEntry.queueType
+            });
             return;
         }
 
@@ -292,6 +367,18 @@ io.on('connection', (socket) => {
 
     socket.on('follow-question', ({ entryId, userId, name, room }) => {
         if (!room) return;
+        
+        // Check if user is in a queue in another room
+        const otherRoomEntry = findUserInAnyRoom(userId);
+        if (otherRoomEntry && otherRoomEntry.room !== room) {
+            socket.emit('error', { 
+                message: `You cannot follow questions while in a queue in room "${otherRoomEntry.room}". Please leave that queue first.`,
+                existingRoom: otherRoomEntry.room,
+                existingQueueType: otherRoomEntry.queueType
+            });
+            return;
+        }
+        
         const queues = getRoom(room);
         const entry = queues.question.find(item => item.id === entryId);
 
@@ -348,6 +435,11 @@ io.on('connection', (socket) => {
 
     socket.on('ta-checkin', ({ queueType, room }) => {
         if (!room) return;
+        // Validate queueType to prevent server crash
+        if (!['marking', 'question', 'combined'].includes(queueType)) {
+            socket.emit('error', { message: 'Invalid queue type' });
+            return;
+        }
         const queues = getRoom(room);
 
         let targetQueue = queueType;
@@ -383,10 +475,11 @@ io.on('connection', (socket) => {
 
     socket.on('ta-call-specific', ({ queueType, entryId, room }) => {
         if (!room) return;
+        if (!['marking', 'question', 'combined'].includes(queueType)) return;
         const queues = getRoom(room);
         let entry = queueType === 'combined'
             ? (queues.marking.find(i => i.id === entryId) || queues.question.find(i => i.id === entryId))
-            : queues[queueType].find(item => item.id === entryId);
+            : queues[queueType]?.find(item => item.id === entryId);
 
         if (entry) {
             entry.status = 'called';
@@ -402,10 +495,11 @@ io.on('connection', (socket) => {
 
     socket.on('ta-cancel-call', ({ queueType, entryId, room }) => {
         if (!room) return;
+        if (!['marking', 'question', 'combined'].includes(queueType)) return;
         const queues = getRoom(room);
         let entry = queueType === 'combined'
             ? (queues.marking.find(i => i.id === entryId) || queues.question.find(i => i.id === entryId))
-            : queues[queueType].find(item => item.id === entryId);
+            : queues[queueType]?.find(item => item.id === entryId);
 
         if (entry && entry.status === 'called') {
             entry.status = 'waiting';
@@ -419,10 +513,11 @@ io.on('connection', (socket) => {
 
     socket.on('ta-start-assisting', ({ queueType, entryId, room }) => {
         if (!room) return;
+        if (!['marking', 'question', 'combined'].includes(queueType)) return;
         const queues = getRoom(room);
         let entry = queueType === 'combined'
             ? (queues.marking.find(i => i.id === entryId) || queues.question.find(i => i.id === entryId))
-            : queues[queueType].find(item => item.id === entryId);
+            : queues[queueType]?.find(item => item.id === entryId);
 
         if (entry) {
             entry.status = 'assisting';
@@ -435,6 +530,7 @@ io.on('connection', (socket) => {
 
     socket.on('ta-next', ({ queueType, room }) => {
         if (!room) return;
+        if (!['marking', 'question', 'combined'].includes(queueType)) return;
         const queues = getRoom(room);
         const types = queueType === 'combined' ? ['marking', 'question'] : [queueType];
         let changed = false;
@@ -461,8 +557,10 @@ io.on('connection', (socket) => {
 
     socket.on('ta-remove', ({ queueType, entryId, room }) => {
         if (!room) return;
+        if (!['marking', 'question'].includes(queueType)) return;
         const queues = getRoom(room);
         const queue = queues[queueType];
+        if (!queue) return;
         const index = queue.findIndex(item => item.id === entryId);
         if (index !== -1) {
             const removed = queue.splice(index, 1)[0];
@@ -562,6 +660,25 @@ app.post('/api/room-auth', (req, res) => {
         res.json({ success: true });
     } else {
         res.status(401).json({ success: false, message: 'Incorrect room password' });
+    }
+});
+
+// 5. Check user's current room membership
+app.get('/api/user-status', (req, res) => {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+
+    const existingEntry = findUserInAnyRoom(userId);
+    if (existingEntry) {
+        res.json({
+            inQueue: true,
+            room: existingEntry.room,
+            queueType: existingEntry.queueType,
+            entryId: existingEntry.entry.id,
+            status: existingEntry.entry.status
+        });
+    } else {
+        res.json({ inQueue: false });
     }
 });
 

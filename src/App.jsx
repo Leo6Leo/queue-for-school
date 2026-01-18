@@ -1370,14 +1370,8 @@ function App() {
     sessionStorage.setItem('ta_auth', isTAAuthenticated);
   }, [isTAAuthenticated]);
 
-  // Register identity with socket
-  useEffect(() => {
-    const userId = getUserId();
-
-    if (isConnected && room) {
-      socket.emit('register-user', { userId, room });
-    }
-  }, [isConnected, room]);
+  // Note: register-user is emitted in onConnect handler and when initially setting up
+  // socket listeners (if socket.connected is true). No separate effect needed here.
 
   // Listen for user data changes from other tabs
   useEffect(() => {
@@ -1425,10 +1419,14 @@ function App() {
       setQueues(data);
 
       // Update status in myEntries if user is in queue
+      // Also discover user's entries if myEntries doesn't have them yet (important for reconnection)
+      const currentUserId = getUserId();
+      
       setMyEntries(prev => {
         const next = { ...prev };
         ['marking', 'question'].forEach(type => {
           if (next[type]) {
+            // We have an existing entry - try to find it by entryId
             const entry = data[type].find(item => item.id === next[type].entryId);
             if (entry) {
               next[type] = {
@@ -1437,7 +1435,29 @@ function App() {
                 position: entry.position
               };
             } else {
-              next[type] = null;
+              // Entry not found by ID - maybe it was removed or ID changed
+              // Try to find by userId as fallback
+              const userEntry = data[type].find(item => item.userId === currentUserId);
+              if (userEntry) {
+                next[type] = {
+                  entryId: userEntry.id,
+                  position: userEntry.position,
+                  status: userEntry.status
+                };
+              } else {
+                next[type] = null;
+              }
+            }
+          } else {
+            // We don't have an entry - check if user is actually in the queue
+            // This handles the case where restore-entries didn't arrive or was missed
+            const userEntry = data[type].find(item => item.userId === currentUserId);
+            if (userEntry) {
+              next[type] = {
+                entryId: userEntry.id,
+                position: userEntry.position,
+                status: userEntry.status
+              };
             }
           }
         });
@@ -1446,7 +1466,20 @@ function App() {
     };
 
     const onRestoreEntries = (data) => {
-      setMyEntries(data);
+      // Only update if data contains valid entries
+      // This prevents overwriting discovered entries with null from restore-entries
+      setMyEntries(prev => {
+        const next = { ...prev };
+        ['marking', 'question'].forEach(type => {
+          if (data[type]) {
+            next[type] = data[type];
+          }
+          // If data[type] is null but prev[type] exists, keep prev[type]
+          // This prevents race conditions where queues-update discovers the entry
+          // but then restore-entries with null overwrites it
+        });
+        return next;
+      });
     };
 
     const onJoinedQueue = (data) => {
