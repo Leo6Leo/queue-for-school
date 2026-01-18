@@ -682,7 +682,30 @@ app.get('/api/user-status', (req, res) => {
     }
 });
 
+// Serve frontend static files in production
+// This allows running both frontend and backend on the same server/port
+const DIST_PATH = path.join(__dirname, '..', 'dist');
+if (fs.existsSync(DIST_PATH)) {
+    console.log('Serving static files from:', DIST_PATH);
+    app.use(express.static(DIST_PATH));
+    
+    // Handle client-side routing - serve index.html for all non-API routes
+    app.get('*', (req, res) => {
+        // Don't serve index.html for API routes
+        if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io/')) {
+            return res.status(404).json({ error: 'Not found' });
+        }
+        res.sendFile(path.join(DIST_PATH, 'index.html'));
+    });
+} else {
+    console.log('No dist folder found. Run "npm run build" to generate frontend files.');
+    console.log('Expected path:', DIST_PATH);
+}
+
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
     console.log(`Queue server running on port ${PORT}`);
+    if (fs.existsSync(DIST_PATH)) {
+        console.log(`Frontend available at http://localhost:${PORT}`);
+    }
 });

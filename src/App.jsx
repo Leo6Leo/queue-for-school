@@ -693,9 +693,8 @@ function AllRoomsView({ theme, setTheme, setRoom }) {
   const fetchRooms = () => {
     setLoading(true);
     setError(null);
-    const API_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
-    fetch(`${API_URL}/api/rooms`)
+    fetch(`${API_BASE_URL}/api/rooms`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
@@ -907,8 +906,7 @@ function TALoginPage({ onLogin, theme, setTheme, room, setRoom }) {
       setRoomStatus({ checked: true, hasPassword: false });
       return;
     }
-    const API_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
-    fetch(`${API_URL}/api/room-status?room=${encodeURIComponent(room)}`)
+    fetch(`${API_BASE_URL}/api/room-status?room=${encodeURIComponent(room)}`)
       .then(res => res.json())
       .then(data => {
         setRoomStatus({ checked: true, hasPassword: data.hasPassword });
@@ -923,11 +921,10 @@ function TALoginPage({ onLogin, theme, setTheme, room, setRoom }) {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    const API_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
     try {
       if (roomStatus.hasPassword) {
-        const response = await fetch(`${API_URL}/api/room-auth`, {
+        const response = await fetch(`${API_BASE_URL}/api/room-auth`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ room, password }),
@@ -939,7 +936,7 @@ function TALoginPage({ onLogin, theme, setTheme, room, setRoom }) {
           setError(data.message || 'Incorrect password');
         }
       } else {
-        const response = await fetch(`${API_URL}/api/claim-room`, {
+        const response = await fetch(`${API_BASE_URL}/api/claim-room`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ room, masterPassword, newPassword }),
