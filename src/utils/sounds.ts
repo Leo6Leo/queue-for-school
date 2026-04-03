@@ -1,12 +1,23 @@
 // Sound effects utilities
 
+// Extend Window for webkitAudioContext support
+interface WindowWithWebkit extends Window {
+    webkitAudioContext: typeof AudioContext;
+}
+
+const getAudioContext = (): AudioContext => {
+    const w = window as unknown as WindowWithWebkit;
+    const Ctx = window.AudioContext || w.webkitAudioContext;
+    return new Ctx();
+};
+
 // Create a simple notification sound using Web Audio API
-export const playNotificationSound = () => {
+export const playNotificationSound = (): void => {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = getAudioContext();
 
         // Create a pleasant notification chime
-        const playTone = (freq, startTime, duration) => {
+        const playTone = (freq: number, startTime: number, duration: number) => {
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
 
@@ -36,11 +47,11 @@ export const playNotificationSound = () => {
 };
 
 // Play an urgent alert sound for "it's your turn"
-export const playUrgentSound = () => {
+export const playUrgentSound = (): void => {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = getAudioContext();
 
-        const playTone = (freq, startTime, duration, volume = 0.4) => {
+        const playTone = (freq: number, startTime: number, duration: number, volume: number = 0.4) => {
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
 
@@ -80,11 +91,11 @@ export const playUrgentSound = () => {
 };
 
 // Play a satisfying sound for following a question (me too!)
-export const playMeTooSound = () => {
+export const playMeTooSound = (): void => {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = getAudioContext();
 
-        const playTone = (freq, startTime, duration, volume = 0.2) => {
+        const playTone = (freq: number, startTime: number, duration: number, volume: number = 0.2) => {
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
 
@@ -115,9 +126,9 @@ export const playMeTooSound = () => {
 };
 
 // Play a pop sound for unfollowing
-export const playPopSound = () => {
+export const playPopSound = (): void => {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = getAudioContext();
 
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
@@ -141,16 +152,16 @@ export const playPopSound = () => {
 };
 
 // Play a soft click sound (keeping for compatibility)
-export const playClickSound = () => {
+export const playClickSound = (): void => {
     playPopSound();
 };
 
 // Play a success sound for check-in
-export const playSuccessSound = () => {
+export const playSuccessSound = (): void => {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = getAudioContext();
 
-        const playTone = (freq, startTime, duration) => {
+        const playTone = (freq: number, startTime: number, duration: number) => {
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
 

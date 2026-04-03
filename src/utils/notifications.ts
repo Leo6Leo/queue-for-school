@@ -1,5 +1,7 @@
+import type { NotificationPermissionStatus } from '../types';
+
 // Request notification permission
-export const requestNotificationPermission = async () => {
+export const requestNotificationPermission = async (): Promise<boolean> => {
     if (!('Notification' in window)) {
         console.log('This browser does not support notifications');
         return false;
@@ -18,14 +20,14 @@ export const requestNotificationPermission = async () => {
 };
 
 // Send browser notification
-export const sendNotification = (title, options = {}) => {
+export const sendNotification = (title: string, options: NotificationOptions & { requireInteraction?: boolean; tag?: string } = {}): Notification | undefined => {
     if (Notification.permission === 'granted') {
         const notification = new Notification(title, {
             icon: '/vite.svg',
             badge: '/vite.svg',
             vibrate: [200, 100, 200],
             ...options,
-        });
+        } as NotificationOptions);
 
         notification.onclick = () => {
             window.focus();
@@ -40,13 +42,13 @@ export const sendNotification = (title, options = {}) => {
 };
 
 // Check if notifications are supported and enabled
-export const isNotificationEnabled = () => {
+export const isNotificationEnabled = (): boolean => {
     return 'Notification' in window && Notification.permission === 'granted';
 };
 
-export const getNotificationPermissionStatus = () => {
+export const getNotificationPermissionStatus = (): NotificationPermissionStatus => {
     if (!('Notification' in window)) {
         return 'unsupported';
     }
-    return Notification.permission;
+    return Notification.permission as NotificationPermissionStatus;
 };
